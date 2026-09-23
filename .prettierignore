@@ -3,3 +3,7 @@ node_modules
 dist
 package-lock.json
 .futurium-scaffold
+.pytest_cache
+backend/.venv
+backend/data
+backend/*.egg-info
