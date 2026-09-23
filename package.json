@@ -8,7 +8,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "lint": "expo lint",
-    "test": "node --import tsx --test src/database/*.test.ts",
+    "test": "node --import tsx --test src/database/*.test.ts src/lib/*.test.ts",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
