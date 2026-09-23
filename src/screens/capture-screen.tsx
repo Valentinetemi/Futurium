@@ -146,10 +146,8 @@ export function CaptureScreen() {
   async function requestPermissions() {
     setErrorMessage(null);
 
-    const [cameraResult, microphoneResult] = await Promise.all([
-      requestCameraPermission(),
-      requestMicrophonePermission(),
-    ]);
+    const cameraResult = await requestCameraPermission();
+    const microphoneResult = await requestMicrophonePermission();
 
     if (!cameraResult.granted || !microphoneResult.granted) {
       setErrorMessage(
@@ -175,6 +173,8 @@ export function CaptureScreen() {
 
       if (recording?.uri) {
         setVideoUri(recording.uri);
+      } else {
+        setErrorMessage('No video was recorded. Please try the sweep again.');
       }
     } catch {
       setErrorMessage('The sweep could not be recorded. Please try again.');
