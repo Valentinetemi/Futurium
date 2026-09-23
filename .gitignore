@@ -36,3 +36,11 @@ yarn-debug.log*
 yarn-error.log*
 *.tsbuildinfo
 .DS_Store
+
+# Python backend runtime files
+backend/.venv/
+backend/data/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/.ruff_cache/
+backend/*.egg-info/
