@@ -19,6 +19,15 @@ export function FrontierMapScreen() {
   const { width } = useWindowDimensions();
   const isCompact = width < layout.compactBreakpoint;
 
+  const handleExitLab = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace('/');
+  };
+
   return (
     <ScreenContainer style={styles.screen}>
       <SpaceBackground />
@@ -37,7 +46,7 @@ export function FrontierMapScreen() {
           <BackButton
             accessibilityLabel="Return to Futurium launch screen"
             label="EXIT LAB"
-            onPress={() => router.back()}
+            onPress={handleExitLab}
           />
 
           <View style={styles.header}>
