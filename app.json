@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Futurium",
+    "slug": "futurium",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "futurium",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.valentinetemi.futurium"
+    },
+    "android": {
+      "package": "com.valentinetemi.futurium",
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

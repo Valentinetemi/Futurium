@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Expo and generated builds
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+/ios/
+/android/
+
+# Temporary local scaffold
+.futurium-scaffold/
+
+# Native credentials and signing files
+.kotlin/
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+google-services.json
+GoogleService-Info.plist
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Logs and tooling
+.metro-health-check*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+.DS_Store
