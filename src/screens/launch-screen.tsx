@@ -59,6 +59,7 @@ export function LaunchScreen() {
 
           <View style={[styles.actionArea, isShort && styles.actionAreaShort]}>
             <PrimaryButton
+              accessibilityHint="Opens the Frontier Map"
               label={launchCopy.action}
               onPress={() => router.push('/frontier-map')}
             />

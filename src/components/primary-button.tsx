@@ -12,29 +12,49 @@ import {
 } from '@/constants/theme';
 
 type PrimaryButtonProps = {
+  accessibilityHint?: string;
+  disabled?: boolean;
   label: string;
   onPress?: ComponentProps<typeof Pressable>['onPress'];
+  showArrow?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
-export function PrimaryButton({ label, onPress, style }: PrimaryButtonProps) {
+export function PrimaryButton({
+  accessibilityHint,
+  disabled = false,
+  label,
+  onPress,
+  showArrow = true,
+  style,
+}: PrimaryButtonProps) {
   return (
     <Pressable
-      accessibilityHint="Opens the Futurium lab"
+      accessibilityHint={disabled ? undefined : accessibilityHint}
       accessibilityRole="button"
-      android_ripple={{ color: 'rgba(5, 8, 22, 0.12)' }}
+      accessibilityState={{ disabled }}
+      android_ripple={disabled ? undefined : { color: 'rgba(5, 8, 22, 0.12)' }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
         style,
+        disabled && styles.buttonDisabled,
         pressed && styles.buttonPressed,
       ]}
     >
       <View style={styles.labelRow}>
-        <Text style={styles.label}>{label}</Text>
-        <View style={styles.arrowCircle}>
-          <Text style={styles.arrow}>→</Text>
-        </View>
+        <Text
+          numberOfLines={1}
+          style={[styles.label, disabled && styles.labelDisabled]}
+        >
+          {label}
+        </Text>
+        {showArrow ? (
+          <View style={styles.arrowCircle}>
+            <Text style={styles.arrow}>→</Text>
+          </View>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -75,12 +95,21 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     transform: [{ scale: 0.985 }],
   },
+  buttonDisabled: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.borderStrong,
+    elevation: 0,
+    shadowOpacity: 0,
+  },
   label: {
     color: colors.backgroundDeep,
     fontSize: typography.size.body,
     fontWeight: typography.weight.bold,
     letterSpacing: 0.2,
     lineHeight: typography.lineHeight.body,
+  },
+  labelDisabled: {
+    color: colors.textSecondary,
   },
   labelRow: {
     alignItems: 'center',

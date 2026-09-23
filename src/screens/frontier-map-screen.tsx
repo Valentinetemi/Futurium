@@ -71,6 +71,11 @@ export function FrontierMapScreen() {
                 compact={isCompact}
                 index={index}
                 key={station.id}
+                onPress={
+                  station.id === 'computer-vision'
+                    ? () => router.push('/missions/computer-vision')
+                    : undefined
+                }
                 station={station}
               />
             ))}
