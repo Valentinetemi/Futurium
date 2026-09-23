@@ -12,7 +12,6 @@
     },
     "android": {
       "package": "com.valentinetemi.futurium",
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "plugins": ["expo-router"],
