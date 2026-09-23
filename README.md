@@ -15,6 +15,7 @@ and a backend are intentionally not implemented yet.
 - Expo Router
 - `expo-camera` for one continuous, maximum 30-second room sweep
 - `expo-video` for playback preview
+- `expo-sqlite` for the durable local saved-memory index
 - RevenueCat React Native SDK with Expo Go Preview API Mode support
 - iOS and Android support
 
@@ -57,17 +58,22 @@ npm run validate
 npx expo-doctor@latest
 ```
 
-`npm run validate` checks formatting, Expo lint rules, and TypeScript types.
+`npm run validate` checks formatting, Expo lint rules, strict TypeScript, and
+the database repository tests. The tests initialize a clean in-memory SQLite
+database before exercising migrations and CRUD behavior.
 
 ## Routes
 
-- `/` — home and empty recent memories
-- `/capture` — permissions, room-sweep recording, playback, discard and save
+- `/` — home and focus-refreshed recent memories
+- `/capture` — permissions, recording, preview, room naming and durable save
+- `/memories/[id]` — saved-memory metadata, video replay and deletion
 - `/find` — visual retrieval placeholder
 - `/plus` — Free/Plus comparison and RevenueCat preview status
 
-Saved videos are copied to the app's private document directory. There is no
-memory index yet, so the home screen intentionally remains empty after saving.
+Saved videos are copied to the app's private document directory and indexed in
+the local `sweeps` SQLite table. Deleting a saved memory removes both resources.
+Missing or damaged video files are reported without crashing the detail screen.
+Object search is still a placeholder; a saved memory is not searchable yet.
 
 ## Project layout
 
@@ -76,8 +82,11 @@ assets/          Static images, fonts and store artwork
 src/app/         Expo Router routes and root layout
 src/components/  Reusable interface building blocks
 src/constants/   Design tokens
+src/database/    SQLite schema, mappings, repository and tests
 src/lib/         Service setup such as RevenueCat
 src/screens/     Screen-level presentation and behavior
+src/services/    Coordinated local file and database operations
+src/utils/       Display formatting helpers
 ```
 
 ## License
