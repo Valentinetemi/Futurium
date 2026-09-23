@@ -1,6 +1,5 @@
 import { useRouter } from 'expo-router';
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,9 +7,11 @@ import {
   View,
 } from 'react-native';
 
+import { BackButton } from '@/components/back-button';
+import { FrontierStationCard } from '@/components/frontier-station-card';
 import { ScreenContainer } from '@/components/screen-container';
 import { SpaceBackground } from '@/components/space-background';
-import { colors, layout, radii, spacing, typography } from '@/constants/theme';
+import { colors, layout, spacing, typography } from '@/constants/theme';
 import { careerFields } from '@/data/career-fields';
 
 export function FrontierMapScreen() {
@@ -33,27 +34,32 @@ export function FrontierMapScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.contentWidth}>
-          <Pressable
+          <BackButton
             accessibilityLabel="Return to Futurium launch screen"
-            accessibilityRole="button"
-            hitSlop={8}
+            label="EXIT LAB"
             onPress={() => router.back()}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.backButtonPressed,
-            ]}
-          >
-            <Text style={styles.backArrow}>←</Text>
-            <Text style={styles.backLabel}>EXIT LAB</Text>
-          </Pressable>
+          />
 
           <View style={styles.header}>
             <Text style={styles.eyebrow}>FRONTIER MAP / ONLINE</Text>
-            <Text style={styles.title}>Welcome to the Lab</Text>
+            <Text style={[styles.title, isCompact && styles.titleCompact]}>
+              Welcome to the Lab
+            </Text>
             <Text style={styles.subtitle}>
               Experience the fields shaping tomorrow through short frontier
               simulations.
             </Text>
+          </View>
+
+          <View style={styles.mapHeader}>
+            <View>
+              <Text style={styles.mapLabel}>LAB NETWORK</Text>
+              <Text style={styles.mapMeta}>04 FRONTIER STATIONS</Text>
+            </View>
+            <View style={styles.mapSignal}>
+              <View style={styles.mapSignalDot} />
+              <Text style={styles.mapSignalText}>CONNECTED</Text>
+            </View>
           </View>
 
           <View
@@ -61,28 +67,12 @@ export function FrontierMapScreen() {
             style={styles.stationList}
           >
             {careerFields.map((station, index) => (
-              <View key={station.id} style={styles.stationCard}>
-                <View style={styles.stationTopRow}>
-                  <Text style={styles.stationCode}>
-                    {String(index + 1).padStart(2, '0')} / {station.code}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.stationStatus,
-                      station.status === 'available' &&
-                        styles.stationStatusAvailable,
-                    ]}
-                  >
-                    {station.status === 'available'
-                      ? 'AVAILABLE'
-                      : 'COMING SOON'}
-                  </Text>
-                </View>
-                <Text style={styles.stationName}>{station.name}</Text>
-                <Text style={styles.stationDescription}>
-                  {station.description}
-                </Text>
-              </View>
+              <FrontierStationCard
+                compact={isCompact}
+                index={index}
+                key={station.id}
+                station={station}
+              />
             ))}
           </View>
         </View>
@@ -92,28 +82,6 @@ export function FrontierMapScreen() {
 }
 
 const styles = StyleSheet.create({
-  backArrow: {
-    color: colors.cyan,
-    fontSize: 19,
-    lineHeight: 21,
-    marginRight: spacing.xs,
-  },
-  backButton: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    minHeight: layout.minTouchTarget,
-    paddingRight: spacing.md,
-  },
-  backButtonPressed: {
-    opacity: 0.68,
-  },
-  backLabel: {
-    color: colors.textSecondary,
-    fontSize: 10,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.5,
-  },
   contentWidth: {
     alignSelf: 'center',
     maxWidth: 720,
@@ -130,6 +98,48 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
     marginTop: spacing.lg,
   },
+  mapHeader: {
+    alignItems: 'center',
+    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+    paddingBottom: spacing.md,
+  },
+  mapLabel: {
+    color: colors.textPrimary,
+    fontSize: 11,
+    fontWeight: typography.weight.bold,
+    letterSpacing: 1.5,
+  },
+  mapMeta: {
+    color: colors.textMuted,
+    fontSize: 8,
+    fontWeight: typography.weight.medium,
+    letterSpacing: 1.2,
+    marginTop: spacing.xxs,
+  },
+  mapSignal: {
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  mapSignalDot: {
+    backgroundColor: colors.cyan,
+    borderRadius: 999,
+    height: 5,
+    marginRight: spacing.xs,
+    shadowColor: colors.cyan,
+    shadowOpacity: 0.8,
+    shadowRadius: 5,
+    width: 5,
+  },
+  mapSignalText: {
+    color: colors.cyanSoft,
+    fontSize: 8,
+    fontWeight: typography.weight.bold,
+    letterSpacing: 1.2,
+  },
   screen: {
     overflow: 'hidden',
   },
@@ -137,49 +147,8 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
     paddingTop: spacing.xs,
   },
-  stationCard: {
-    backgroundColor: colors.backgroundElevated,
-    borderColor: colors.border,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    marginBottom: spacing.md,
-    padding: spacing.lg,
-  },
-  stationCode: {
-    color: colors.textMuted,
-    fontSize: 10,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.4,
-  },
-  stationDescription: {
-    color: colors.textSecondary,
-    fontSize: typography.size.body,
-    lineHeight: typography.lineHeight.body,
-    marginTop: spacing.xs,
-  },
   stationList: {
     width: '100%',
-  },
-  stationName: {
-    color: colors.textPrimary,
-    fontSize: 23,
-    fontWeight: typography.weight.bold,
-    lineHeight: 29,
-    marginTop: spacing.lg,
-  },
-  stationStatus: {
-    color: colors.textMuted,
-    fontSize: 9,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.2,
-  },
-  stationStatusAvailable: {
-    color: colors.cyan,
-  },
-  stationTopRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
   },
   subtitle: {
     color: colors.textSecondary,
@@ -195,5 +164,10 @@ const styles = StyleSheet.create({
     letterSpacing: -1.7,
     lineHeight: 48,
     marginTop: spacing.sm,
+  },
+  titleCompact: {
+    fontSize: 36,
+    letterSpacing: -1.3,
+    lineHeight: 42,
   },
 });
