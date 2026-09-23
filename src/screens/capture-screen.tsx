@@ -255,7 +255,9 @@ export function CaptureScreen() {
     microphonePermission?.canAskAgain !== false;
 
   async function requestPermissions() {
-    setErrorMessage(null);
+    setErrorMessage(
+      'Please allow camera and microphone access to record a room sweep.',
+    );
 
     const cameraResult = await requestCameraPermission();
     const microphoneResult = await requestMicrophonePermission();
@@ -264,6 +266,8 @@ export function CaptureScreen() {
       setErrorMessage(
         'Camera and microphone access are both needed to record a room sweep.',
       );
+    } else {
+      setErrorMessage(null);
     }
   }
 
