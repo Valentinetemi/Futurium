@@ -108,7 +108,7 @@ export function HomeScreen() {
               title="Record a space"
             />
             <HomeActionCard
-              description="Ask where an object was last seen."
+              description="Preview the object search experience coming next."
               kind="find"
               onPress={() => router.push('/find')}
               title="Find something"

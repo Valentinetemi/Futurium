@@ -14,7 +14,13 @@ type SaveSweepInput = {
 };
 
 function deleteFileIfPresent(uri: string) {
-  const file = new File(uri);
+  let file: File;
+
+  try {
+    file = new File(uri);
+  } catch {
+    return;
+  }
 
   if (file.exists) {
     file.delete();

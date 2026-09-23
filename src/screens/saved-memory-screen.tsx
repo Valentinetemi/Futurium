@@ -232,9 +232,24 @@ export function SavedMemoryScreen() {
                 <View style={styles.detailDivider} />
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>STATUS</Text>
-                  <View style={styles.statusPill}>
-                    <View style={styles.statusDot} />
-                    <Text style={styles.statusText}>
+                  <View
+                    style={[
+                      styles.statusPill,
+                      sweep.status === 'failed' && styles.statusPillFailed,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.statusDot,
+                        sweep.status === 'failed' && styles.statusDotFailed,
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.statusText,
+                        sweep.status === 'failed' && styles.statusTextFailed,
+                      ]}
+                    >
                       {getSweepStatusLabel(sweep.status)}
                     </Text>
                   </View>
@@ -409,6 +424,9 @@ const styles = StyleSheet.create({
     marginRight: 6,
     width: 6,
   },
+  statusDotFailed: {
+    backgroundColor: colors.danger,
+  },
   statusPill: {
     alignItems: 'center',
     backgroundColor: colors.sageSoft,
@@ -417,10 +435,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
+  statusPillFailed: {
+    backgroundColor: colors.dangerSoft,
+  },
   statusText: {
     color: colors.sageDark,
     fontSize: typography.size.caption,
     fontWeight: typography.weight.semibold,
+  },
+  statusTextFailed: {
+    color: colors.danger,
   },
   title: {
     color: colors.ink,
