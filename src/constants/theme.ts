@@ -1,21 +1,25 @@
 export const colors = {
-  background: '#050816',
-  backgroundDeep: '#02040D',
-  backgroundElevated: '#0A1025',
-  surface: '#101938',
-  surfaceMuted: '#151F42',
-  cyan: '#5DEBFF',
-  cyanSoft: '#9AF5FF',
-  violet: '#A884FF',
-  violetSoft: '#C8B4FF',
-  textPrimary: '#F7FAFF',
-  textSecondary: '#A9B4D0',
-  textMuted: '#707D9E',
-  border: 'rgba(138, 230, 255, 0.18)',
-  borderStrong: 'rgba(138, 230, 255, 0.34)',
-  cyanGlow: 'rgba(93, 235, 255, 0.22)',
-  violetGlow: 'rgba(168, 132, 255, 0.18)',
-  whiteGlow: 'rgba(255, 255, 255, 0.7)',
+  canvas: '#F4F3EE',
+  canvasMuted: '#ECEAE3',
+  surface: '#FFFFFF',
+  ink: '#17201B',
+  inkSoft: '#3E4943',
+  muted: '#737E78',
+  faint: '#9BA39F',
+  line: '#D9DDD7',
+  lineStrong: '#C5CCC6',
+  sage: '#617C6E',
+  sageDark: '#30483C',
+  sageSoft: '#DDE8E1',
+  mint: '#BDD2C6',
+  sand: '#E7DFD2',
+  camera: '#101411',
+  cameraSoft: '#202721',
+  white: '#FAFBF9',
+  danger: '#A9534D',
+  dangerSoft: '#F3E0DD',
+  shadow: 'rgba(25, 36, 30, 0.12)',
+  overlay: 'rgba(10, 14, 11, 0.42)',
   transparent: 'transparent',
 } as const;
 
@@ -40,26 +44,26 @@ export const radii = {
 
 export const typography = {
   size: {
-    eyebrow: 11,
+    caption: 11,
+    bodySmall: 14,
     body: 16,
     bodyLarge: 19,
-    title: 56,
+    heading: 30,
+    display: 48,
   },
   lineHeight: {
-    eyebrow: 16,
+    caption: 16,
+    bodySmall: 20,
     body: 24,
     bodyLarge: 28,
-    title: 62,
+    heading: 36,
+    display: 52,
   },
   weight: {
+    regular: '400',
     medium: '500',
     semibold: '600',
     bold: '700',
-    black: '900',
-  },
-  tracking: {
-    eyebrow: 2.4,
-    title: -2.2,
   },
 } as const;
 
@@ -67,23 +71,23 @@ export const layout = {
   compactBreakpoint: 380,
   horizontalPadding: spacing.lg,
   horizontalPaddingCompact: spacing.md,
-  maxContentWidth: 560,
+  maxContentWidth: 720,
   minTouchTarget: 48,
 } as const;
 
 export const shadows = {
-  cyanGlow: {
-    elevation: 8,
-    shadowColor: colors.cyan,
+  card: {
+    elevation: 3,
+    shadowColor: colors.ink,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
   },
-  panel: {
-    elevation: 5,
-    shadowColor: colors.backgroundDeep,
+  floating: {
+    elevation: 8,
+    shadowColor: colors.ink,
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.36,
+    shadowOpacity: 0.16,
     shadowRadius: 24,
   },
 } as const;

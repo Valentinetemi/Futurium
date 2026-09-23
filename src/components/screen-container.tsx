@@ -6,18 +6,30 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/constants/theme';
 
 type ScreenContainerProps = PropsWithChildren<{
+  dark?: boolean;
   style?: StyleProp<ViewStyle>;
 }>;
 
-export function ScreenContainer({ children, style }: ScreenContainerProps) {
+export function ScreenContainer({
+  children,
+  dark = false,
+  style,
+}: ScreenContainerProps) {
   return (
-    <SafeAreaView style={[styles.container, style]}>{children}</SafeAreaView>
+    <SafeAreaView
+      style={[styles.container, dark && styles.containerDark, style]}
+    >
+      {children}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.canvas,
     flex: 1,
+  },
+  containerDark: {
+    backgroundColor: colors.camera,
   },
 });

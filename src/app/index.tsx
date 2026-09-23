@@ -1,5 +1,5 @@
-import { LaunchScreen } from '@/screens/launch-screen';
+import { HomeScreen } from '@/screens/home-screen';
 
 export default function HomeRoute() {
-  return <LaunchScreen />;
+  return <HomeScreen />;
 }

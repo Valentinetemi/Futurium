@@ -11,6 +11,8 @@ import {
   typography,
 } from '@/constants/theme';
 
+type ButtonVariant = 'primary' | 'secondary' | 'danger';
+
 type PrimaryButtonProps = {
   accessibilityHint?: string;
   disabled?: boolean;
@@ -18,6 +20,7 @@ type PrimaryButtonProps = {
   onPress?: ComponentProps<typeof Pressable>['onPress'];
   showArrow?: boolean;
   style?: StyleProp<ViewStyle>;
+  variant?: ButtonVariant;
 };
 
 export function PrimaryButton({
@@ -25,36 +28,39 @@ export function PrimaryButton({
   disabled = false,
   label,
   onPress,
-  showArrow = true,
+  showArrow = false,
   style,
+  variant = 'primary',
 }: PrimaryButtonProps) {
   return (
     <Pressable
       accessibilityHint={disabled ? undefined : accessibilityHint}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
-      android_ripple={disabled ? undefined : { color: 'rgba(5, 8, 22, 0.12)' }}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
+        variant === 'secondary' && styles.secondary,
+        variant === 'danger' && styles.danger,
+        disabled && styles.disabled,
         style,
-        disabled && styles.buttonDisabled,
-        pressed && styles.buttonPressed,
+        pressed && styles.pressed,
       ]}
     >
       <View style={styles.labelRow}>
         <Text
           numberOfLines={1}
-          style={[styles.label, disabled && styles.labelDisabled]}
+          style={[
+            styles.label,
+            variant === 'secondary' && styles.labelSecondary,
+            variant === 'danger' && styles.labelDanger,
+            disabled && styles.labelDisabled,
+          ]}
         >
           {label}
         </Text>
-        {showArrow ? (
-          <View style={styles.arrowCircle}>
-            <Text style={styles.arrow}>→</Text>
-          </View>
-        ) : null}
+        {showArrow ? <Text style={styles.arrow}>→</Text> : null}
       </View>
     </Pressable>
   );
@@ -62,58 +68,63 @@ export function PrimaryButton({
 
 const styles = StyleSheet.create({
   arrow: {
-    color: colors.backgroundDeep,
-    fontSize: 17,
-    lineHeight: 19,
-    marginTop: -1,
-  },
-  arrowCircle: {
-    alignItems: 'center',
-    borderColor: 'rgba(5, 8, 22, 0.22)',
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    height: 28,
-    justifyContent: 'center',
+    color: colors.white,
+    fontSize: 18,
     marginLeft: spacing.sm,
-    width: 28,
   },
   button: {
-    ...shadows.cyanGlow,
+    ...shadows.card,
     alignItems: 'center',
     alignSelf: 'center',
-    backgroundColor: colors.cyan,
-    borderColor: colors.cyanSoft,
+    backgroundColor: colors.sageDark,
+    borderColor: colors.sageDark,
     borderRadius: radii.pill,
     borderWidth: 1,
     justifyContent: 'center',
-    maxWidth: 320,
-    minHeight: 58,
-    paddingHorizontal: spacing.sm,
+    minHeight: 56,
+    paddingHorizontal: spacing.lg,
     width: '100%',
   },
-  buttonPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.985 }],
+  danger: {
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.dangerSoft,
+    elevation: 0,
+    shadowOpacity: 0,
   },
-  buttonDisabled: {
-    backgroundColor: colors.surfaceMuted,
-    borderColor: colors.borderStrong,
+  disabled: {
+    backgroundColor: colors.canvasMuted,
+    borderColor: colors.line,
     elevation: 0,
     shadowOpacity: 0,
   },
   label: {
-    color: colors.backgroundDeep,
+    color: colors.white,
     fontSize: typography.size.body,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 0.2,
+    fontWeight: typography.weight.semibold,
     lineHeight: typography.lineHeight.body,
   },
+  labelDanger: {
+    color: colors.danger,
+  },
   labelDisabled: {
-    color: colors.textSecondary,
+    color: colors.muted,
   },
   labelRow: {
     alignItems: 'center',
     flexDirection: 'row',
     minHeight: layout.minTouchTarget,
+  },
+  labelSecondary: {
+    color: colors.ink,
+  },
+  pressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.99 }],
+  },
+  secondary: {
+    backgroundColor: colors.surface,
+    borderColor: colors.lineStrong,
+    elevation: 0,
+    shadowOpacity: 0,
   },
 });

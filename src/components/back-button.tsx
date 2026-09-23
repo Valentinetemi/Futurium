@@ -5,13 +5,15 @@ import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 
 type BackButtonProps = {
   accessibilityLabel: string;
-  label: string;
+  dark?: boolean;
+  label?: string;
   onPress: ComponentProps<typeof Pressable>['onPress'];
 };
 
 export function BackButton({
   accessibilityLabel,
-  label,
+  dark = false,
+  label = 'Back',
   onPress,
 }: BackButtonProps) {
   return (
@@ -22,20 +24,21 @@ export function BackButton({
       onPress={onPress}
       style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
     >
-      <View style={styles.iconCircle}>
-        <Text style={styles.arrow}>←</Text>
+      <View style={[styles.icon, dark && styles.iconDark]}>
+        <Text style={[styles.arrow, dark && styles.textDark]}>‹</Text>
       </View>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, dark && styles.textDark]}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   arrow: {
-    color: colors.cyan,
-    fontSize: 19,
-    lineHeight: 21,
-    marginTop: -1,
+    color: colors.ink,
+    fontSize: 27,
+    lineHeight: 29,
+    marginLeft: -1,
+    marginTop: -2,
   },
   button: {
     alignItems: 'center',
@@ -45,12 +48,12 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
   },
   buttonPressed: {
-    opacity: 0.68,
-    transform: [{ translateX: -2 }],
+    opacity: 0.58,
   },
-  iconCircle: {
+  icon: {
     alignItems: 'center',
-    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
+    borderColor: colors.line,
     borderRadius: radii.pill,
     borderWidth: 1,
     height: 38,
@@ -58,10 +61,16 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
     width: 38,
   },
+  iconDark: {
+    backgroundColor: colors.cameraSoft,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
   label: {
-    color: colors.textSecondary,
-    fontSize: 10,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.5,
+    color: colors.inkSoft,
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.semibold,
+  },
+  textDark: {
+    color: colors.white,
   },
 });
