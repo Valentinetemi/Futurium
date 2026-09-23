@@ -3,7 +3,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,10 +16,21 @@ import {
 
 import { BackButton } from '@/components/back-button';
 import { PrimaryButton } from '@/components/primary-button';
+import { ProcessingSummary } from '@/components/processing-summary';
 import { ScreenContainer } from '@/components/screen-container';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 import type { Sweep } from '@/database/sweep-model';
-import { getSweep } from '@/database/sweep-repository';
+import {
+  beginSweepUpload,
+  getSweep,
+  saveSweepProcessingManifest,
+  updateSweepStatus,
+} from '@/database/sweep-repository';
+import {
+  getSweepProcessing,
+  ProcessingApiError,
+  uploadSweepForProcessing,
+} from '@/lib/processing-api';
 import {
   deleteSweepWithVideo,
   isSweepVideoAvailable,
@@ -33,6 +44,14 @@ import {
 type SavedMemoryVideoProps = {
   uri: string;
 };
+
+function processingErrorMessage(error: unknown) {
+  if (error instanceof ProcessingApiError || error instanceof Error) {
+    return error.message;
+  }
+
+  return 'The saved memory could not be processed. Please try again.';
+}
 
 function SavedMemoryVideo({ uri }: SavedMemoryVideoProps) {
   const player = useVideoPlayer(uri, (videoPlayer) => {
@@ -84,12 +103,14 @@ export function SavedMemoryScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [processingError, setProcessingError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isVideoAvailable, setIsVideoAvailable] = useState(false);
   const { width } = useWindowDimensions();
   const isCompact = width < layout.compactBreakpoint;
   const rawId = Array.isArray(id) ? id[0] : id;
   const sweepId = Number(rawId);
+  const hasProcessingManifest = Boolean(sweep?.processingManifest);
 
   const loadSweep = useCallback(async () => {
     setIsLoading(true);
@@ -103,7 +124,15 @@ export function SavedMemoryScreen() {
     }
 
     try {
-      const savedSweep = await getSweep(database, sweepId);
+      let savedSweep = await getSweep(database, sweepId);
+
+      if (savedSweep?.status === 'uploading' && !savedSweep.processingJobId) {
+        savedSweep = await updateSweepStatus(database, sweepId, 'failed');
+        setProcessingError(
+          'The previous upload was interrupted before the server created a job. You can retry it safely.',
+        );
+      }
+
       setSweep(savedSweep);
       setIsVideoAvailable(
         savedSweep ? isSweepVideoAvailable(savedSweep.videoUri) : false,
@@ -120,6 +149,116 @@ export function SavedMemoryScreen() {
       void loadSweep();
     }, [loadSweep]),
   );
+
+  useEffect(() => {
+    const jobId = sweep?.processingJobId;
+    const processingStatus = sweep?.status;
+    const needsManifestRefresh =
+      processingStatus === 'processing' ||
+      (processingStatus === 'ready' && !hasProcessingManifest);
+
+    if (!jobId || !needsManifestRefresh) {
+      return;
+    }
+
+    const activeJobId = jobId;
+    let isCancelled = false;
+    let nextCheck: ReturnType<typeof setTimeout> | undefined;
+
+    async function checkProcessing() {
+      try {
+        const manifest = await getSweepProcessing(activeJobId);
+        if (isCancelled) {
+          return;
+        }
+
+        const updatedSweep = await saveSweepProcessingManifest(
+          database,
+          sweepId,
+          manifest,
+        );
+        if (isCancelled) {
+          return;
+        }
+
+        setSweep(updatedSweep);
+        setProcessingError(null);
+
+        if (manifest.status === 'processing') {
+          nextCheck = setTimeout(() => void checkProcessing(), 1200);
+        }
+      } catch (error) {
+        if (isCancelled) {
+          return;
+        }
+
+        setProcessingError(
+          `${processingErrorMessage(error)} The app will check again automatically.`,
+        );
+        nextCheck = setTimeout(() => void checkProcessing(), 3000);
+      }
+    }
+
+    void checkProcessing();
+
+    return () => {
+      isCancelled = true;
+      if (nextCheck) {
+        clearTimeout(nextCheck);
+      }
+    };
+  }, [
+    database,
+    hasProcessingManifest,
+    sweep?.processingJobId,
+    sweep?.status,
+    sweepId,
+  ]);
+
+  async function uploadForProcessing(savedSweep: Sweep) {
+    setProcessingError(null);
+
+    try {
+      const uploadingSweep = await beginSweepUpload(database, savedSweep.id);
+      if (!uploadingSweep) {
+        throw new Error('This saved memory no longer exists.');
+      }
+      setSweep(uploadingSweep);
+
+      const manifest = await uploadSweepForProcessing(
+        savedSweep.id,
+        savedSweep.videoUri,
+      );
+      const updatedSweep = await saveSweepProcessingManifest(
+        database,
+        savedSweep.id,
+        manifest,
+      );
+      setSweep(updatedSweep);
+    } catch (error) {
+      const failedSweep = await updateSweepStatus(
+        database,
+        savedSweep.id,
+        'failed',
+      );
+      setSweep(failedSweep);
+      setProcessingError(processingErrorMessage(error));
+    }
+  }
+
+  function confirmUpload(savedSweep: Sweep) {
+    Alert.alert(
+      'Upload for processing?',
+      'A copy of this room video will be sent to your configured server. The uploaded original is deleted after processing succeeds or fails. Your saved on-device video remains available for replay.',
+      [
+        { style: 'cancel', text: 'Cancel' },
+        {
+          onPress: () => void uploadForProcessing(savedSweep),
+          text: 'Upload',
+        },
+      ],
+    );
+  }
 
   async function deleteMemory(savedSweep: Sweep) {
     setIsDeleting(true);
@@ -256,9 +395,17 @@ export function SavedMemoryScreen() {
                 </View>
               </View>
 
+              <ProcessingSummary
+                errorMessage={processingError}
+                isVideoAvailable={isVideoAvailable}
+                manifest={sweep.processingManifest}
+                onUpload={() => confirmUpload(sweep)}
+                status={sweep.status}
+              />
+
               <Text style={styles.searchNotice}>
-                Object search is not connected yet. This is a saved memory for
-                replay only.
+                Future object search will report where an item was last seen in
+                this saved sweep. It is not connected yet.
               </Text>
 
               <View style={styles.deleteSection}>

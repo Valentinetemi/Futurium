@@ -178,7 +178,8 @@ export function HomeScreen() {
           <View style={styles.privacyNote}>
             <View style={styles.privacyDot} />
             <Text style={styles.privacyText}>
-              Sweeps stay on this device in this prototype.
+              Saved videos stay on this device unless you choose to upload one
+              for processing.
             </Text>
           </View>
         </View>
