@@ -32,7 +32,7 @@ def test_upload_processes_video_and_serves_manifest_and_thumbnail(
         response = client.post(
             "/sweeps",
             data={"sweep_id": "42"},
-            files={"video": ("ignored-client-name.mp4", video, "video/mp4")},
+            files={"video": ("../../ignored-client-name.mp4", video, "video/mp4")},
         )
 
     assert response.status_code == 202
@@ -117,3 +117,7 @@ def test_invalid_identifiers_return_structured_not_found(tmp_path: Path) -> None
             "message": "Processing job not found.",
         }
     }
+
+    missing_route = client.get("/sweeps/not-a-job-id/unknown")
+    assert missing_route.status_code == 404
+    assert missing_route.json()["error"]["code"] == "not_found"

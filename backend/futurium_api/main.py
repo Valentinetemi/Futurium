@@ -9,6 +9,7 @@ from uuid import uuid4
 from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
+from starlette.exceptions import HTTPException as StarletteHttpException
 
 from .config import Settings
 from .errors import ApiError, ProcessingError
@@ -170,6 +171,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             422, "validation_error", "The request fields are not valid."
         )
 
+    @app.exception_handler(StarletteHttpException)
+    async def handle_http_error(
+        _request: Request, error: StarletteHttpException
+    ) -> JSONResponse:
+        if error.status_code == 404:
+            return error_response(
+                404, "not_found", "The requested resource was not found."
+            )
+        if error.status_code == 405:
+            return error_response(
+                405, "method_not_allowed", "This method is not allowed."
+            )
+        return error_response(
+            error.status_code, "http_error", "The request could not be completed."
+        )
+
     @app.exception_handler(Exception)
     async def handle_unexpected_error(
         _request: Request, _error: Exception
@@ -194,7 +211,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "/sweeps",
         response_model=ProcessingManifest,
         status_code=202,
-        responses={400: {"model": ErrorResponse}, 413: {"model": ErrorResponse}},
+        responses={
+            400: {"model": ErrorResponse},
+            413: {"model": ErrorResponse},
+            415: {"model": ErrorResponse},
+            422: {"model": ErrorResponse},
+            503: {"model": ErrorResponse},
+        },
     )
     async def upload_sweep(
         background_tasks: BackgroundTasks,
