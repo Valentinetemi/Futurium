@@ -6,6 +6,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,11 +15,15 @@ import {
 } from 'react-native';
 
 import { BackButton } from '@/components/back-button';
+import { PrimaryButton } from '@/components/primary-button';
 import { ScreenContainer } from '@/components/screen-container';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 import type { Sweep } from '@/database/sweep-model';
 import { getSweep } from '@/database/sweep-repository';
-import { isSweepVideoAvailable } from '@/services/sweep-storage';
+import {
+  deleteSweepWithVideo,
+  isSweepVideoAvailable,
+} from '@/services/sweep-storage';
 import {
   formatSweepDate,
   formatSweepDuration,
@@ -78,6 +83,8 @@ export function SavedMemoryScreen() {
   const [sweep, setSweep] = useState<Sweep | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isVideoAvailable, setIsVideoAvailable] = useState(false);
   const { width } = useWindowDimensions();
   const isCompact = width < layout.compactBreakpoint;
@@ -113,6 +120,36 @@ export function SavedMemoryScreen() {
       void loadSweep();
     }, [loadSweep]),
   );
+
+  async function deleteMemory(savedSweep: Sweep) {
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      await deleteSweepWithVideo(database, savedSweep);
+      router.replace('/');
+    } catch {
+      setDeleteError(
+        'This saved memory could not be deleted. Its record has been kept so you can try again.',
+      );
+      setIsDeleting(false);
+    }
+  }
+
+  function confirmDelete(savedSweep: Sweep) {
+    Alert.alert(
+      'Delete saved memory?',
+      `This permanently removes ${savedSweep.roomName} and its local video from this device.`,
+      [
+        { style: 'cancel', text: 'Cancel' },
+        {
+          onPress: () => void deleteMemory(savedSweep),
+          style: 'destructive',
+          text: 'Delete',
+        },
+      ],
+    );
+  }
 
   return (
     <ScreenContainer>
@@ -208,6 +245,29 @@ export function SavedMemoryScreen() {
                 Object search is not connected yet. This is a saved memory for
                 replay only.
               </Text>
+
+              <View style={styles.deleteSection}>
+                <Text style={styles.deleteTitle}>Remove saved memory</Text>
+                <Text style={styles.deleteCopy}>
+                  This deletes both the database record and video from this
+                  device.
+                </Text>
+                <PrimaryButton
+                  accessibilityHint="Ask for confirmation before permanently deleting this saved memory and video"
+                  disabled={isDeleting}
+                  label={isDeleting ? 'Deleting…' : 'Delete memory'}
+                  onPress={() => confirmDelete(sweep)}
+                  variant="danger"
+                />
+                {deleteError ? (
+                  <Text
+                    accessibilityLiveRegion="polite"
+                    style={styles.deleteError}
+                  >
+                    {deleteError}
+                  </Text>
+                ) : null}
+              </View>
             </>
           ) : null}
         </View>
@@ -239,6 +299,31 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   detailValue: {
+    color: colors.ink,
+    fontSize: typography.size.body,
+    fontWeight: typography.weight.semibold,
+  },
+  deleteCopy: {
+    color: colors.muted,
+    fontSize: typography.size.bodySmall,
+    lineHeight: typography.lineHeight.bodySmall,
+    marginBottom: spacing.md,
+    marginTop: spacing.xs,
+  },
+  deleteError: {
+    color: colors.danger,
+    fontSize: typography.size.bodySmall,
+    lineHeight: typography.lineHeight.bodySmall,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
+  deleteSection: {
+    borderColor: colors.line,
+    borderTopWidth: 1,
+    marginTop: spacing.xl,
+    paddingTop: spacing.lg,
+  },
+  deleteTitle: {
     color: colors.ink,
     fontSize: typography.size.body,
     fontWeight: typography.weight.semibold,
