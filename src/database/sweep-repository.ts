@@ -8,9 +8,10 @@ import {
   type SweepRow,
   type SweepStatus,
 } from '@/database/sweep-model';
+import type { ProcessingManifest } from '@/types/processing';
 
 export const DATABASE_NAME = 'futurium.db';
-export const DATABASE_VERSION = 1;
+export const DATABASE_VERSION = 2;
 
 export type SweepDatabase = {
   execAsync(source: string): Promise<void>;
@@ -33,7 +34,9 @@ const CREATE_DATABASE_SQL = `
     durationSeconds INTEGER NOT NULL CHECK(durationSeconds >= 0 AND durationSeconds <= 30),
     createdAt TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'saved'
-      CHECK(status IN ('saved', 'processing', 'ready', 'failed'))
+      CHECK(status IN ('saved', 'uploading', 'processing', 'ready', 'failed')),
+    processingJobId TEXT,
+    processingManifest TEXT
   );
 
   CREATE INDEX IF NOT EXISTS sweeps_created_at_index
@@ -41,6 +44,48 @@ const CREATE_DATABASE_SQL = `
 
   PRAGMA user_version = ${DATABASE_VERSION};
   COMMIT;
+`;
+
+const MIGRATE_VERSION_1_TO_2_SQL = `
+  BEGIN IMMEDIATE;
+
+  DROP INDEX IF EXISTS sweeps_created_at_index;
+  ALTER TABLE sweeps RENAME TO sweeps_version_1;
+
+  CREATE TABLE sweeps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    roomName TEXT NOT NULL CHECK(length(trim(roomName)) > 0),
+    videoUri TEXT NOT NULL CHECK(length(trim(videoUri)) > 0),
+    durationSeconds INTEGER NOT NULL CHECK(durationSeconds >= 0 AND durationSeconds <= 30),
+    createdAt TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'saved'
+      CHECK(status IN ('saved', 'uploading', 'processing', 'ready', 'failed')),
+    processingJobId TEXT,
+    processingManifest TEXT
+  );
+
+  INSERT INTO sweeps (
+    id, roomName, videoUri, durationSeconds, createdAt, status
+  )
+  SELECT id, roomName, videoUri, durationSeconds, createdAt, status
+  FROM sweeps_version_1;
+
+  DROP TABLE sweeps_version_1;
+
+  CREATE INDEX sweeps_created_at_index ON sweeps(createdAt DESC);
+  PRAGMA user_version = ${DATABASE_VERSION};
+  COMMIT;
+`;
+
+const SWEEP_COLUMNS = `
+  id,
+  roomName,
+  videoUri,
+  durationSeconds,
+  createdAt,
+  status,
+  processingJobId,
+  processingManifest
 `;
 
 export async function initializeDatabase(database: SweepDatabase) {
@@ -63,6 +108,8 @@ export async function initializeDatabase(database: SweepDatabase) {
 
   if (currentVersion === 0) {
     await database.execAsync(CREATE_DATABASE_SQL);
+  } else if (currentVersion === 1) {
+    await database.execAsync(MIGRATE_VERSION_1_TO_2_SQL);
   }
 }
 
@@ -105,7 +152,7 @@ export async function createSweep(
 
 export async function listSweeps(database: SweepDatabase): Promise<Sweep[]> {
   const rows = await database.getAllAsync<SweepRow>(
-    `SELECT id, roomName, videoUri, durationSeconds, createdAt, status
+    `SELECT ${SWEEP_COLUMNS}
      FROM sweeps
      ORDER BY createdAt DESC, id DESC`,
     {},
@@ -119,7 +166,7 @@ export async function getSweep(
   id: number,
 ): Promise<Sweep | null> {
   const row = await database.getFirstAsync<SweepRow>(
-    `SELECT id, roomName, videoUri, durationSeconds, createdAt, status
+    `SELECT ${SWEEP_COLUMNS}
      FROM sweeps
      WHERE id = $id`,
     { $id: id },
@@ -154,4 +201,48 @@ export async function updateSweepStatus(
   }
 
   return getSweep(database, id);
+}
+
+export async function beginSweepUpload(
+  database: SweepDatabase,
+  id: number,
+): Promise<Sweep | null> {
+  const result = await database.runAsync(
+    `UPDATE sweeps
+     SET status = 'uploading',
+         processingJobId = NULL,
+         processingManifest = NULL
+     WHERE id = $id`,
+    { $id: id },
+  );
+
+  return result.changes > 0 ? getSweep(database, id) : null;
+}
+
+export async function saveSweepProcessingManifest(
+  database: SweepDatabase,
+  id: number,
+  manifest: ProcessingManifest,
+): Promise<Sweep | null> {
+  if (manifest.sweepId !== id) {
+    throw new Error(
+      'The processing manifest does not match this saved memory.',
+    );
+  }
+
+  const result = await database.runAsync(
+    `UPDATE sweeps
+     SET status = $status,
+         processingJobId = $processingJobId,
+         processingManifest = $processingManifest
+     WHERE id = $id`,
+    {
+      $id: id,
+      $processingJobId: manifest.jobId,
+      $processingManifest: JSON.stringify(manifest),
+      $status: manifest.status,
+    },
+  );
+
+  return result.changes > 0 ? getSweep(database, id) : null;
 }

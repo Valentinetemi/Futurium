@@ -1,5 +1,11 @@
+import {
+  parseProcessingManifest,
+  type ProcessingManifest,
+} from '@/types/processing';
+
 export const SWEEP_STATUSES = [
   'saved',
+  'uploading',
   'processing',
   'ready',
   'failed',
@@ -11,6 +17,8 @@ export type Sweep = {
   createdAt: string;
   durationSeconds: number;
   id: number;
+  processingJobId: string | null;
+  processingManifest: ProcessingManifest | null;
   roomName: string;
   status: SweepStatus;
   videoUri: string;
@@ -28,6 +36,8 @@ export type SweepRow = {
   createdAt: string;
   durationSeconds: number;
   id: number;
+  processingJobId: string | null;
+  processingManifest: string | null;
   roomName: string;
   status: string;
   videoUri: string;
@@ -38,10 +48,24 @@ export function isSweepStatus(value: string): value is SweepStatus {
 }
 
 export function mapSweepRow(row: SweepRow): Sweep {
+  let processingManifest: ProcessingManifest | null = null;
+
+  if (row.processingManifest) {
+    try {
+      processingManifest = parseProcessingManifest(
+        JSON.parse(row.processingManifest) as unknown,
+      );
+    } catch {
+      processingManifest = null;
+    }
+  }
+
   return {
     createdAt: row.createdAt,
     durationSeconds: Number(row.durationSeconds),
     id: Number(row.id),
+    processingJobId: row.processingJobId,
+    processingManifest,
     roomName: row.roomName,
     status: isSweepStatus(row.status) ? row.status : 'failed',
     videoUri: row.videoUri,

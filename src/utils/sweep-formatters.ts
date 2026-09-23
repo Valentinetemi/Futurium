@@ -27,6 +27,7 @@ export function getSweepStatusLabel(status: SweepStatus) {
     processing: 'Processing',
     ready: 'Ready',
     saved: 'Saved memory',
+    uploading: 'Uploading',
   };
 
   return labels[status];

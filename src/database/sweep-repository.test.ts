@@ -11,12 +11,14 @@ import {
   type SweepRow,
 } from '@/database/sweep-model';
 import {
+  beginSweepUpload,
   createSweep,
   DATABASE_VERSION,
   deleteSweep,
   getSweep,
   initializeDatabase,
   listSweeps,
+  saveSweepProcessingManifest,
   type SweepDatabase,
   updateSweepStatus,
 } from '@/database/sweep-repository';
@@ -128,8 +130,53 @@ test('initializes the complete schema against a clean database', async () => {
     assert.equal(version?.user_version, DATABASE_VERSION);
     assert.deepEqual(
       columns.map((column) => column.name),
-      ['id', 'roomName', 'videoUri', 'durationSeconds', 'createdAt', 'status'],
+      [
+        'id',
+        'roomName',
+        'videoUri',
+        'durationSeconds',
+        'createdAt',
+        'status',
+        'processingJobId',
+        'processingManifest',
+      ],
     );
+  } finally {
+    testDatabase.close();
+  }
+});
+
+test('migrates version one records without losing saved memories', async () => {
+  const testDatabase = await createCleanTestDatabase();
+
+  try {
+    await testDatabase.database.execAsync(`
+      CREATE TABLE sweeps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        roomName TEXT NOT NULL,
+        videoUri TEXT NOT NULL,
+        durationSeconds INTEGER NOT NULL,
+        createdAt TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE INDEX sweeps_created_at_index ON sweeps(createdAt DESC);
+      INSERT INTO sweeps (
+        roomName, videoUri, durationSeconds, createdAt, status
+      ) VALUES (
+        'Kitchen', 'file:///documents/kitchen.mov', 12,
+        '2026-09-23T10:00:00.000Z', 'saved'
+      );
+      PRAGMA user_version = 1;
+    `);
+
+    await initializeDatabase(testDatabase.database);
+
+    const sweeps = await listSweeps(testDatabase.database);
+    assert.equal(sweeps.length, 1);
+    assert.equal(sweeps[0]?.roomName, 'Kitchen');
+    assert.equal(sweeps[0]?.status, 'saved');
+    assert.equal(sweeps[0]?.processingJobId, null);
+    assert.equal(sweeps[0]?.processingManifest, null);
   } finally {
     testDatabase.close();
   }
@@ -157,6 +204,8 @@ test('creates, orders, reads, updates and deletes sweep records', async () => {
     assert.equal(bedroom.roomName, 'Bedroom');
     assert.equal(bedroom.durationSeconds, 9);
     assert.equal(bedroom.status, 'saved');
+    assert.equal(bedroom.processingJobId, null);
+    assert.equal(bedroom.processingManifest, null);
     assert.deepEqual(
       (await listSweeps(testDatabase.database)).map((sweep) => sweep.id),
       [kitchen.id, bedroom.id],
@@ -180,6 +229,57 @@ test('creates, orders, reads, updates and deletes sweep records', async () => {
   }
 });
 
+test('persists upload and completed processing manifests on one sweep', async () => {
+  const testDatabase = await createCleanTestDatabase();
+
+  try {
+    await initializeDatabase(testDatabase.database);
+    const sweep = await createSweep(testDatabase.database, {
+      durationSeconds: 3,
+      roomName: 'Office',
+      videoUri: 'file:///documents/office.mp4',
+    });
+
+    const uploading = await beginSweepUpload(testDatabase.database, sweep.id);
+    assert.equal(uploading?.status, 'uploading');
+    assert.equal(uploading?.processingJobId, null);
+
+    const manifest = {
+      createdAt: '2026-09-23T12:00:00.000Z',
+      duration: 3,
+      error: null,
+      frames: [
+        {
+          frameId: 'frame_000001',
+          thumbnailUrl:
+            '/sweeps/11111111-1111-4111-8111-111111111111/thumbnails/frame_000001.jpg',
+          timestamp: 0,
+        },
+      ],
+      jobId: '11111111-1111-4111-8111-111111111111',
+      rejectedBlurCount: 1,
+      rejectedDuplicateCount: 1,
+      retainedFrameCount: 1,
+      status: 'ready' as const,
+      sweepId: sweep.id,
+      totalFramesSampled: 3,
+    };
+    const ready = await saveSweepProcessingManifest(
+      testDatabase.database,
+      sweep.id,
+      manifest,
+    );
+
+    assert.equal(ready?.id, sweep.id);
+    assert.equal(ready?.status, 'ready');
+    assert.equal(ready?.processingJobId, manifest.jobId);
+    assert.deepEqual(ready?.processingManifest, manifest);
+    assert.equal((await listSweeps(testDatabase.database)).length, 1);
+  } finally {
+    testDatabase.close();
+  }
+});
+
 test('normalizes new sweeps and safely maps an unknown stored status', () => {
   const normalized = normalizeCreateSweepInput({
     createdAt: '2026-09-23T11:30:00Z',
@@ -190,6 +290,8 @@ test('normalizes new sweeps and safely maps an unknown stored status', () => {
   const row: SweepRow = {
     ...normalized,
     id: 42,
+    processingJobId: null,
+    processingManifest: null,
     status: 'unexpected-status',
   };
 
