@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { BrandMark } from '@/components/brand-mark';
@@ -8,6 +9,7 @@ import { launchCopy } from '@/constants/copy';
 import { colors, layout, spacing, typography } from '@/constants/theme';
 
 export function LaunchScreen() {
+  const router = useRouter();
   const { height, width } = useWindowDimensions();
   const isCompact = width < layout.compactBreakpoint;
   const isShort = height < 700;
@@ -56,7 +58,10 @@ export function LaunchScreen() {
           </Text>
 
           <View style={[styles.actionArea, isShort && styles.actionAreaShort]}>
-            <PrimaryButton label={launchCopy.action} />
+            <PrimaryButton
+              label={launchCopy.action}
+              onPress={() => router.push('/frontier-map')}
+            />
             <Text style={styles.actionNote}>
               SHORT SIMULATIONS · REAL CAREER PATHS
             </Text>
