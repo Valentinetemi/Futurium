@@ -3,17 +3,22 @@ import {
   useCameraPermissions,
   useMicrophonePermissions,
 } from 'expo-camera';
-import { File, Paths } from 'expo-file-system';
+import { File } from 'expo-file-system';
 import { useRouter } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Linking,
+  Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -22,26 +27,24 @@ import { BackButton } from '@/components/back-button';
 import { PrimaryButton } from '@/components/primary-button';
 import { ScreenContainer } from '@/components/screen-container';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
+import { saveSweepWithVideo } from '@/services/sweep-storage';
 
 const MAX_RECORDING_SECONDS = 30;
+const ROOM_SUGGESTIONS = [
+  'Bedroom',
+  'Living room',
+  'Kitchen',
+  'Other',
+] as const;
 
 type SweepPreviewProps = {
   isSaving: boolean;
-  isSaved: boolean;
   onDiscard: () => void;
-  onDone: () => void;
   onSave: () => void;
   uri: string;
 };
 
-function SweepPreview({
-  isSaving,
-  isSaved,
-  onDiscard,
-  onDone,
-  onSave,
-  uri,
-}: SweepPreviewProps) {
+function SweepPreview({ isSaving, onDiscard, onSave, uri }: SweepPreviewProps) {
   const player = useVideoPlayer(uri, (videoPlayer) => {
     videoPlayer.loop = true;
     videoPlayer.play();
@@ -61,60 +64,168 @@ function SweepPreview({
       <View style={styles.previewShade} pointerEvents="none" />
 
       <View style={styles.previewHeader}>
-        <Text style={styles.cameraEyebrow}>
-          {isSaved ? 'MEMORY SAVED' : 'REVIEW SWEEP'}
-        </Text>
+        <Text style={styles.cameraEyebrow}>REVIEW SWEEP</Text>
         <Text accessibilityRole="header" style={styles.previewTitle}>
-          {isSaved ? 'Ready to remember.' : 'Keep this room sweep?'}
+          Keep this room sweep?
         </Text>
         <Text style={styles.previewCopy}>
-          {isSaved
-            ? 'This video is stored on this device. Visual search will be connected in a later build.'
-            : 'Play it back and make sure the room is covered clearly.'}
+          Play it back and make sure the room is covered clearly.
         </Text>
       </View>
 
       <View style={styles.previewActions}>
-        {isSaved ? (
+        <>
           <PrimaryButton
-            accessibilityHint="Return to the home screen"
-            label="Done"
-            onPress={onDone}
+            accessibilityHint="Name this room before saving the memory"
+            disabled={isSaving}
+            label="Save memory"
+            onPress={onSave}
           />
-        ) : (
-          <>
-            <PrimaryButton
-              accessibilityHint="Save this room sweep on this device"
-              disabled={isSaving}
-              label={isSaving ? 'Saving…' : 'Save sweep'}
-              onPress={onSave}
-            />
-            <PrimaryButton
-              accessibilityHint="Delete this recording and return to the camera"
-              disabled={isSaving}
-              label="Discard"
-              onPress={onDiscard}
-              variant="secondary"
-            />
-          </>
-        )}
+          <PrimaryButton
+            accessibilityHint="Delete this recording and return to the camera"
+            disabled={isSaving}
+            label="Discard"
+            onPress={onDiscard}
+            variant="secondary"
+          />
+        </>
       </View>
     </View>
   );
 }
 
+type RoomNameModalProps = {
+  errorMessage: string | null;
+  isSaving: boolean;
+  onCancel: () => void;
+  onChangeRoomName: (roomName: string) => void;
+  onSave: () => void;
+  roomName: string;
+  visible: boolean;
+};
+
+function RoomNameModal({
+  errorMessage,
+  isSaving,
+  onCancel,
+  onChangeRoomName,
+  onSave,
+  roomName,
+  visible,
+}: RoomNameModalProps) {
+  const trimmedRoomName = roomName.trim();
+  const presetRoomNames: readonly string[] = ROOM_SUGGESTIONS.slice(0, -1);
+
+  return (
+    <Modal
+      animationType="slide"
+      onRequestClose={isSaving ? undefined : onCancel}
+      transparent
+      visible={visible}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.modalRoot}
+      >
+        <Pressable
+          accessibilityLabel="Close room name dialog"
+          accessibilityRole="button"
+          disabled={isSaving}
+          onPress={onCancel}
+          style={styles.modalBackdrop}
+        />
+        <View style={styles.roomSheet}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetEyebrow}>SAVE MEMORY</Text>
+          <Text accessibilityRole="header" style={styles.sheetTitle}>
+            Which room is this?
+          </Text>
+          <Text style={styles.sheetCopy}>
+            A clear room name will make this saved memory easier to recognize.
+          </Text>
+
+          <View
+            accessibilityLabel="Room name suggestions"
+            style={styles.suggestions}
+          >
+            {ROOM_SUGGESTIONS.map((suggestion) => {
+              const isOther = suggestion === 'Other';
+              const isSelected = isOther
+                ? trimmedRoomName.length > 0 &&
+                  !presetRoomNames.includes(trimmedRoomName)
+                : trimmedRoomName === suggestion;
+
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  key={suggestion}
+                  onPress={() => onChangeRoomName(isOther ? '' : suggestion)}
+                  style={({ pressed }) => [
+                    styles.suggestion,
+                    isSelected && styles.suggestionSelected,
+                    pressed && styles.suggestionPressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.suggestionText,
+                      isSelected && styles.suggestionTextSelected,
+                    ]}
+                  >
+                    {suggestion}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <TextInput
+            accessibilityLabel="Room name"
+            autoCapitalize="words"
+            editable={!isSaving}
+            maxLength={80}
+            onChangeText={onChangeRoomName}
+            placeholder="Or type a room name"
+            placeholderTextColor={colors.faint}
+            returnKeyType="done"
+            style={styles.roomInput}
+            value={roomName}
+          />
+
+          <PrimaryButton
+            accessibilityHint="Copy the video to permanent storage and create a saved memory"
+            disabled={!trimmedRoomName || isSaving}
+            label={isSaving ? 'Saving memory…' : 'Save memory'}
+            onPress={onSave}
+          />
+
+          {errorMessage ? (
+            <Text accessibilityLiveRegion="polite" style={styles.sheetError}>
+              {errorMessage}
+            </Text>
+          ) : null}
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 export function CaptureScreen() {
   const router = useRouter();
+  const database = useSQLiteContext();
   const cameraRef = useRef<CameraView>(null);
   const recordingStartedAt = useRef(0);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [microphonePermission, requestMicrophonePermission] =
     useMicrophonePermissions();
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [isNamingRoom, setIsNamingRoom] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [recordedDurationSeconds, setRecordedDurationSeconds] = useState(0);
+  const [roomName, setRoomName] = useState('');
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { width } = useWindowDimensions();
@@ -172,6 +283,15 @@ export function CaptureScreen() {
       });
 
       if (recording?.uri) {
+        setRecordedDurationSeconds(
+          Math.max(
+            1,
+            Math.min(
+              MAX_RECORDING_SECONDS,
+              Math.round((Date.now() - recordingStartedAt.current) / 1000),
+            ),
+          ),
+        );
         setVideoUri(recording.uri);
       } else {
         setErrorMessage('No video was recorded. Please try the sweep again.');
@@ -201,13 +321,15 @@ export function CaptureScreen() {
     }
 
     setVideoUri(null);
-    setIsSaved(false);
+    setIsNamingRoom(false);
     setElapsedSeconds(0);
+    setRecordedDurationSeconds(0);
+    setRoomName('');
     setErrorMessage(null);
   }
 
   async function saveSweep() {
-    if (!videoUri || isSaving) {
+    if (!videoUri || !roomName.trim() || isSaving) {
       return;
     }
 
@@ -215,18 +337,16 @@ export function CaptureScreen() {
     setErrorMessage(null);
 
     try {
-      const temporaryVideo = new File(videoUri);
-      const extension = temporaryVideo.extension || '.mp4';
-      const savedVideo = new File(
-        Paths.document,
-        `room-sweep-${Date.now()}${extension}`,
-      );
-
-      await temporaryVideo.copy(savedVideo);
-      setVideoUri(savedVideo.uri);
-      setIsSaved(true);
+      await saveSweepWithVideo(database, {
+        durationSeconds: recordedDurationSeconds,
+        roomName,
+        temporaryVideoUri: videoUri,
+      });
+      router.replace('/');
     } catch {
-      setErrorMessage('This sweep could not be saved. Please try again.');
+      setErrorMessage(
+        'This saved memory could not be created. Please try again.',
+      );
     } finally {
       setIsSaving(false);
     }
@@ -237,18 +357,31 @@ export function CaptureScreen() {
       <ScreenContainer dark style={styles.screen}>
         <StatusBar style="light" />
         <SweepPreview
-          isSaved={isSaved}
           isSaving={isSaving}
           onDiscard={discardSweep}
-          onDone={() => router.replace('/')}
-          onSave={saveSweep}
+          onSave={() => {
+            setErrorMessage(null);
+            setIsNamingRoom(true);
+          }}
           uri={videoUri}
         />
-        {errorMessage ? (
+        {!isNamingRoom && errorMessage ? (
           <View accessibilityLiveRegion="polite" style={styles.errorToast}>
             <Text style={styles.errorToastText}>{errorMessage}</Text>
           </View>
         ) : null}
+        <RoomNameModal
+          errorMessage={errorMessage}
+          isSaving={isSaving}
+          onCancel={() => {
+            setErrorMessage(null);
+            setIsNamingRoom(false);
+          }}
+          onChangeRoomName={setRoomName}
+          onSave={saveSweep}
+          roomName={roomName}
+          visible={isNamingRoom}
+        />
       </ScreenContainer>
     );
   }
@@ -584,6 +717,14 @@ const styles = StyleSheet.create({
     fontSize: typography.size.body,
     marginTop: spacing.md,
   },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(10,14,11,0.62)',
+  },
+  modalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
   permissionActions: {
     paddingBottom: spacing.lg,
   },
@@ -722,6 +863,64 @@ const styles = StyleSheet.create({
   screen: {
     backgroundColor: colors.camera,
   },
+  roomInput: {
+    backgroundColor: colors.canvas,
+    borderColor: colors.lineStrong,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    color: colors.ink,
+    fontSize: typography.size.body,
+    marginBottom: spacing.md,
+    minHeight: 56,
+    paddingHorizontal: spacing.md,
+  },
+  roomSheet: {
+    alignSelf: 'center',
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    maxWidth: layout.maxContentWidth,
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    width: '100%',
+  },
+  sheetCopy: {
+    color: colors.muted,
+    fontSize: typography.size.bodySmall,
+    lineHeight: typography.lineHeight.bodySmall,
+    marginTop: spacing.xs,
+  },
+  sheetError: {
+    color: colors.danger,
+    fontSize: typography.size.bodySmall,
+    lineHeight: typography.lineHeight.bodySmall,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
+  sheetEyebrow: {
+    color: colors.sage,
+    fontSize: typography.size.caption,
+    fontWeight: typography.weight.bold,
+    letterSpacing: 1.5,
+    lineHeight: typography.lineHeight.caption,
+    marginTop: spacing.md,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    backgroundColor: colors.lineStrong,
+    borderRadius: radii.pill,
+    height: 4,
+    width: 40,
+  },
+  sheetTitle: {
+    color: colors.ink,
+    fontSize: typography.size.heading,
+    fontWeight: typography.weight.semibold,
+    letterSpacing: -1,
+    lineHeight: typography.lineHeight.heading,
+    marginTop: spacing.xs,
+  },
   stopControl: {
     borderColor: '#E3665D',
   },
@@ -730,6 +929,39 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm,
     height: 27,
     width: 27,
+  },
+  suggestion: {
+    backgroundColor: colors.canvas,
+    borderColor: colors.line,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    marginBottom: spacing.xs,
+    marginRight: spacing.xs,
+    minHeight: 42,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  suggestionPressed: {
+    opacity: 0.68,
+  },
+  suggestionSelected: {
+    backgroundColor: colors.sageSoft,
+    borderColor: colors.sage,
+  },
+  suggestionText: {
+    color: colors.inkSoft,
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.medium,
+  },
+  suggestionTextSelected: {
+    color: colors.sageDark,
+    fontWeight: typography.weight.semibold,
+  },
+  suggestions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: spacing.sm,
+    marginTop: spacing.lg,
   },
   timerLimit: {
     color: colors.faint,
