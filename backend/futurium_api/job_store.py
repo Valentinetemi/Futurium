@@ -78,6 +78,19 @@ class JobStore:
             return None
         return path
 
+    def list_job_ids(self) -> list[str]:
+        job_ids: list[str] = []
+        for entry in self.root.iterdir():
+            if not entry.is_dir():
+                continue
+            try:
+                normalized = normalize_job_id(entry.name)
+            except ValueError:
+                continue
+            if normalized == entry.name and (entry / "manifest.json").is_file():
+                job_ids.append(normalized)
+        return sorted(job_ids)
+
     def remove_job(self, job_id: str) -> None:
         normalized = normalize_job_id(job_id)
         with self._lock:

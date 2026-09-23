@@ -6,7 +6,9 @@ from uuid import UUID
 from fastapi.testclient import TestClient
 
 from futurium_api.config import Settings
+from futurium_api.job_store import JobStore
 from futurium_api.main import create_app
+from futurium_api.models import ProcessingManifest, ProcessingStatus
 
 
 def test_health_reports_processing_dependencies(tmp_path: Path) -> None:
@@ -121,3 +123,27 @@ def test_invalid_identifiers_return_structured_not_found(tmp_path: Path) -> None
     missing_route = client.get("/sweeps/not-a-job-id/unknown")
     assert missing_route.status_code == 404
     assert missing_route.json()["error"]["code"] == "not_found"
+
+
+def test_startup_recovers_interrupted_job_and_deletes_source(tmp_path: Path) -> None:
+    data_dir = tmp_path / "jobs"
+    store = JobStore(data_dir)
+    manifest = ProcessingManifest(
+        job_id="11111111-1111-4111-8111-111111111111",
+        sweep_id=18,
+        status=ProcessingStatus.PROCESSING,
+    )
+    job_dir = store.create_job(manifest)
+    source_path = job_dir / "source.upload"
+    source_path.write_bytes(b"private room video")
+    (job_dir / "frames" / "partial.jpg").write_bytes(b"partial")
+
+    client = TestClient(create_app(Settings(data_dir=data_dir)))
+    response = client.get(f"/sweeps/{manifest.job_id}")
+
+    assert response.status_code == 200
+    recovered = response.json()
+    assert recovered["status"] == "failed"
+    assert recovered["error"]["code"] == "processing_interrupted"
+    assert not source_path.exists()
+    assert list((job_dir / "frames").iterdir()) == []

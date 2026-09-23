@@ -75,6 +75,41 @@ def clear_processed_images(job_dir: Path) -> None:
                 directory.mkdir(exist_ok=True)
 
 
+def recover_interrupted_jobs(store: JobStore) -> None:
+    for job_id in store.list_job_ids():
+        job_dir = store.job_dir(job_id)
+        (job_dir / "source.upload").unlink(missing_ok=True)
+
+        try:
+            manifest = store.get(job_id)
+        except Exception:
+            logger.warning(
+                "sweep_recovery_manifest_unreadable", extra={"job_id": job_id}
+            )
+            continue
+
+        if manifest is None or manifest.status is not ProcessingStatus.PROCESSING:
+            continue
+
+        clear_processed_images(job_dir)
+        manifest.status = ProcessingStatus.FAILED
+        manifest.error = JobError(
+            code="processing_interrupted",
+            message=(
+                "Processing was interrupted. The saved memory can be uploaded again."
+            ),
+        )
+        store.save(manifest)
+        logger.warning(
+            "sweep_processing_recovered_as_failed",
+            extra={
+                "job_id": job_id,
+                "sweep_id": manifest.sweep_id,
+                "status": manifest.status.value,
+            },
+        )
+
+
 def process_job(
     job_id: str,
     source_path: Path,
@@ -152,6 +187,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     configure_logging()
     active_settings = settings or Settings.from_environment()
     store = JobStore(active_settings.data_dir)
+    recover_interrupted_jobs(store)
     processor = FrameProcessor(active_settings)
     app = FastAPI(
         title="Futurium Processing API",

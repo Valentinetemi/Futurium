@@ -86,7 +86,9 @@ limited to 100 MiB by default.
 The temporary uploaded source is removed in a `finally` path whether processing
 succeeds or fails. Temporary sampled frames are also deleted. Manifests,
 retained frames and thumbnails remain under `FUTURIUM_DATA_DIR` for later search
-development.
+development. On a server restart, any job left in `processing` is recovered as
+`failed`, its temporary upload is removed, and the mobile client can retry the
+same saved memory.
 
 ## Environment variables
 
