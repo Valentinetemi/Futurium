@@ -1,0 +1,157 @@
+import type { SQLiteBindParams, SQLiteRunResult } from 'expo-sqlite';
+
+import {
+  mapSweepRow,
+  normalizeCreateSweepInput,
+  type CreateSweepInput,
+  type Sweep,
+  type SweepRow,
+  type SweepStatus,
+} from '@/database/sweep-model';
+
+export const DATABASE_NAME = 'futurium.db';
+export const DATABASE_VERSION = 1;
+
+export type SweepDatabase = {
+  execAsync(source: string): Promise<void>;
+  getAllAsync<T>(source: string, params: SQLiteBindParams): Promise<T[]>;
+  getFirstAsync<T>(source: string, params: SQLiteBindParams): Promise<T | null>;
+  runAsync(source: string, params: SQLiteBindParams): Promise<SQLiteRunResult>;
+};
+
+type DatabaseVersionRow = {
+  user_version: number;
+};
+
+const CREATE_DATABASE_SQL = `
+  BEGIN IMMEDIATE;
+
+  CREATE TABLE IF NOT EXISTS sweeps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    roomName TEXT NOT NULL CHECK(length(trim(roomName)) > 0),
+    videoUri TEXT NOT NULL CHECK(length(trim(videoUri)) > 0),
+    durationSeconds INTEGER NOT NULL CHECK(durationSeconds >= 0 AND durationSeconds <= 30),
+    createdAt TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'saved'
+      CHECK(status IN ('saved', 'processing', 'ready', 'failed'))
+  );
+
+  CREATE INDEX IF NOT EXISTS sweeps_created_at_index
+    ON sweeps(createdAt DESC);
+
+  PRAGMA user_version = ${DATABASE_VERSION};
+  COMMIT;
+`;
+
+export async function initializeDatabase(database: SweepDatabase) {
+  await database.execAsync(`
+    PRAGMA journal_mode = WAL;
+    PRAGMA foreign_keys = ON;
+  `);
+
+  const versionRow = await database.getFirstAsync<DatabaseVersionRow>(
+    'PRAGMA user_version',
+    {},
+  );
+  const currentVersion = Number(versionRow?.user_version ?? 0);
+
+  if (currentVersion > DATABASE_VERSION) {
+    throw new Error(
+      `Database version ${currentVersion} is newer than supported version ${DATABASE_VERSION}.`,
+    );
+  }
+
+  if (currentVersion === 0) {
+    await database.execAsync(CREATE_DATABASE_SQL);
+  }
+}
+
+export async function createSweep(
+  database: SweepDatabase,
+  input: CreateSweepInput,
+): Promise<Sweep> {
+  const sweep = normalizeCreateSweepInput(input);
+  const result = await database.runAsync(
+    `INSERT INTO sweeps (
+      roomName,
+      videoUri,
+      durationSeconds,
+      createdAt,
+      status
+    ) VALUES (
+      $roomName,
+      $videoUri,
+      $durationSeconds,
+      $createdAt,
+      $status
+    )`,
+    {
+      $createdAt: sweep.createdAt,
+      $durationSeconds: sweep.durationSeconds,
+      $roomName: sweep.roomName,
+      $status: sweep.status,
+      $videoUri: sweep.videoUri,
+    },
+  );
+
+  const createdSweep = await getSweep(database, result.lastInsertRowId);
+
+  if (!createdSweep) {
+    throw new Error('The saved memory could not be read after creation.');
+  }
+
+  return createdSweep;
+}
+
+export async function listSweeps(database: SweepDatabase): Promise<Sweep[]> {
+  const rows = await database.getAllAsync<SweepRow>(
+    `SELECT id, roomName, videoUri, durationSeconds, createdAt, status
+     FROM sweeps
+     ORDER BY createdAt DESC, id DESC`,
+    {},
+  );
+
+  return rows.map(mapSweepRow);
+}
+
+export async function getSweep(
+  database: SweepDatabase,
+  id: number,
+): Promise<Sweep | null> {
+  const row = await database.getFirstAsync<SweepRow>(
+    `SELECT id, roomName, videoUri, durationSeconds, createdAt, status
+     FROM sweeps
+     WHERE id = $id`,
+    { $id: id },
+  );
+
+  return row ? mapSweepRow(row) : null;
+}
+
+export async function deleteSweep(
+  database: SweepDatabase,
+  id: number,
+): Promise<boolean> {
+  const result = await database.runAsync('DELETE FROM sweeps WHERE id = $id', {
+    $id: id,
+  });
+
+  return result.changes > 0;
+}
+
+export async function updateSweepStatus(
+  database: SweepDatabase,
+  id: number,
+  status: SweepStatus,
+): Promise<Sweep | null> {
+  const result = await database.runAsync(
+    'UPDATE sweeps SET status = $status WHERE id = $id',
+    { $id: id, $status: status },
+  );
+
+  if (result.changes === 0) {
+    return null;
+  }
+
+  return getSweep(database, id);
+}
