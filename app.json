@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "futurium",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.valentinetemi.futurium"
@@ -14,7 +14,19 @@
       "package": "com.valentinetemi.futurium",
       "predictiveBackGestureEnabled": false
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Futurium to record visual memories of your spaces.",
+          "microphonePermission": "Allow Futurium to include sound in room sweeps.",
+          "recordAudioAndroid": true,
+          "barcodeScannerEnabled": false
+        }
+      ],
+      "expo-video"
+    ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
