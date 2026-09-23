@@ -1,6 +1,9 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
+import { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,13 +14,39 @@ import {
 
 import { HomeActionCard } from '@/components/home-action-card';
 import { MemoryMark } from '@/components/memory-mark';
+import { SavedMemoryCard } from '@/components/saved-memory-card';
 import { ScreenContainer } from '@/components/screen-container';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
+import type { Sweep } from '@/database/sweep-model';
+import { listSweeps } from '@/database/sweep-repository';
 
 export function HomeScreen() {
   const router = useRouter();
+  const database = useSQLiteContext();
+  const [sweeps, setSweeps] = useState<Sweep[]>([]);
+  const [isLoadingSweeps, setIsLoadingSweeps] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const { width } = useWindowDimensions();
   const isCompact = width < layout.compactBreakpoint;
+
+  const refreshSweeps = useCallback(async () => {
+    setIsLoadingSweeps(true);
+    setLoadError(null);
+
+    try {
+      setSweeps(await listSweeps(database));
+    } catch {
+      setLoadError('Saved memories could not be loaded. Please try again.');
+    } finally {
+      setIsLoadingSweeps(false);
+    }
+  }, [database]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshSweeps();
+    }, [refreshSweeps]),
+  );
 
   return (
     <ScreenContainer>
@@ -67,8 +96,7 @@ export function HomeScreen() {
               Sweep now.{`\n`}Ask later.
             </Text>
             <Text style={styles.intro}>
-              Record a room once. Return to its visual memory whenever you need
-              to find something.
+              Record a room once. Keep a visual memory of the space for later.
             </Text>
           </View>
 
@@ -89,20 +117,63 @@ export function HomeScreen() {
 
           <View style={styles.recentHeader}>
             <Text style={styles.sectionTitle}>Recent memories</Text>
-            <Text style={styles.sectionCount}>0 SPACES</Text>
-          </View>
-
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIcon}>
-              <View style={styles.emptyFrame} />
-              <View style={styles.emptyFrameOffset} />
-            </View>
-            <Text style={styles.emptyTitle}>No spaces saved yet</Text>
-            <Text style={styles.emptyCopy}>
-              Your completed room sweeps will appear here, ready to search
-              later.
+            <Text style={styles.sectionCount}>
+              {sweeps.length} {sweeps.length === 1 ? 'SPACE' : 'SPACES'}
             </Text>
           </View>
+
+          {isLoadingSweeps ? (
+            <View accessibilityLiveRegion="polite" style={styles.loadingState}>
+              <ActivityIndicator color={colors.sage} />
+              <Text style={styles.loadingText}>Loading saved memories…</Text>
+            </View>
+          ) : null}
+
+          {!isLoadingSweeps && loadError ? (
+            <View accessibilityLiveRegion="polite" style={styles.errorState}>
+              <Text style={styles.errorTitle}>Memories unavailable</Text>
+              <Text style={styles.errorCopy}>{loadError}</Text>
+              <Pressable
+                accessibilityLabel="Retry loading saved memories"
+                accessibilityRole="button"
+                onPress={() => void refreshSweeps()}
+                style={({ pressed }) => [
+                  styles.retryButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.retryText}>Try again</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {!isLoadingSweeps && !loadError
+            ? sweeps.map((sweep) => (
+                <SavedMemoryCard
+                  key={sweep.id}
+                  onPress={() =>
+                    router.push({
+                      params: { id: String(sweep.id) },
+                      pathname: '/memories/[id]',
+                    })
+                  }
+                  sweep={sweep}
+                />
+              ))
+            : null}
+
+          {!isLoadingSweeps && !loadError && sweeps.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIcon}>
+                <View style={styles.emptyFrame} />
+                <View style={styles.emptyFrameOffset} />
+              </View>
+              <Text style={styles.emptyTitle}>No spaces saved yet</Text>
+              <Text style={styles.emptyCopy}>
+                Your saved room sweeps will appear here as saved memories.
+              </Text>
+            </View>
+          ) : null}
 
           <View style={styles.privacyNote}>
             <View style={styles.privacyDot} />
@@ -182,6 +253,24 @@ const styles = StyleSheet.create({
     fontSize: typography.size.body,
     fontWeight: typography.weight.semibold,
   },
+  errorCopy: {
+    color: colors.muted,
+    fontSize: typography.size.bodySmall,
+    lineHeight: typography.lineHeight.bodySmall,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+  },
+  errorState: {
+    alignItems: 'center',
+    backgroundColor: colors.dangerSoft,
+    borderRadius: radii.lg,
+    padding: spacing.lg,
+  },
+  errorTitle: {
+    color: colors.danger,
+    fontSize: typography.size.body,
+    fontWeight: typography.weight.semibold,
+  },
   eyebrow: {
     color: colors.sage,
     fontSize: typography.size.caption,
@@ -211,6 +300,22 @@ const styles = StyleSheet.create({
     lineHeight: typography.lineHeight.bodyLarge,
     marginTop: spacing.md,
     maxWidth: 540,
+  },
+  loadingState: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    minHeight: 96,
+    padding: spacing.lg,
+  },
+  loadingText: {
+    color: colors.muted,
+    fontSize: typography.size.bodySmall,
+    marginLeft: spacing.sm,
   },
   plusButton: {
     alignItems: 'center',
@@ -272,6 +377,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: spacing.md,
+  },
+  retryButton: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.pill,
+    marginTop: spacing.md,
+    minHeight: layout.minTouchTarget,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  retryText: {
+    color: colors.danger,
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.semibold,
   },
   scrollContent: {
     paddingBottom: spacing.xl,
