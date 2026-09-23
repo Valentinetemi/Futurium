@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { ScreenContainer } from '@/components/screen-container';
 import { launchCopy } from '@/constants/copy';
+import { colors, spacing, typography } from '@/constants/theme';
 
 export function LaunchScreen() {
   return (
@@ -21,14 +22,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tagline: {
-    color: '#a9b4d0',
-    fontSize: 18,
-    marginTop: 16,
+    color: colors.textSecondary,
+    fontSize: typography.size.bodyLarge,
+    lineHeight: typography.lineHeight.bodyLarge,
+    marginTop: spacing.md,
     textAlign: 'center',
   },
   title: {
-    color: '#ffffff',
-    fontSize: 40,
-    fontWeight: '700',
+    color: colors.textPrimary,
+    fontSize: typography.size.title,
+    fontWeight: typography.weight.bold,
+    letterSpacing: typography.tracking.title,
+    lineHeight: typography.lineHeight.title,
   },
 });
