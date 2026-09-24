@@ -1,7 +1,8 @@
 import type { ComponentProps } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
+import { Text } from '@/components/app-text';
 import {
   colors,
   layout,
@@ -52,7 +53,8 @@ export function PrimaryButton({
       ]}
     >
       <Text
-        numberOfLines={1}
+        maxFontSizeMultiplier={typography.maxScale.control}
+        numberOfLines={2}
         style={[
           styles.label,
           variant === 'secondary' && styles.labelSecondary,
@@ -74,10 +76,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderColor: colors.primary,
     borderRadius: radii.md,
-    borderWidth: 1.5,
+    borderWidth: 1,
     justifyContent: 'center',
     minHeight: layout.buttonHeight,
     paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
     width: '100%',
   },
   danger: {
@@ -94,6 +97,7 @@ const styles = StyleSheet.create({
     fontSize: typography.size.body,
     fontWeight: typography.weight.semibold,
     lineHeight: typography.lineHeight.body,
+    textAlign: 'center',
   },
   labelDanger: {
     color: colors.error,

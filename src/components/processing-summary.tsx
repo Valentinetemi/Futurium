@@ -1,14 +1,14 @@
 import { useState } from 'react';
+
 import {
   ActivityIndicator,
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 
+import { Text } from '@/components/app-text';
 import { PrimaryButton } from '@/components/primary-button';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 import type { SweepStatus } from '@/database/sweep-model';
@@ -80,46 +80,68 @@ function ProcessingDetails({ errorMessage, manifest }: DetailsProps) {
   );
 }
 
+const CONTACT_SHEET_PREVIEW = 9;
+
 function Moments({ manifest }: { manifest: ProcessingManifest }) {
+  const [showAll, setShowAll] = useState(false);
+
   if (manifest.frames.length === 0) {
     return (
       <Text style={styles.body}>
-        No clear moments were found in this video. Try recording the room again
-        with a slower, steadier sweep.
+        No clear moments were found. Try recording the room again, moving more
+        slowly.
       </Text>
     );
   }
 
-  return (
-    <ScrollView
-      accessibilityLabel="Moments from this room"
-      contentContainerStyle={styles.momentsContent}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.moments}
-    >
-      {manifest.frames.map((frame) => {
-        const uri = safeThumbnailUrl(frame.thumbnailUrl);
-        const time = formatMomentTime(frame.timestamp);
+  const frames = showAll
+    ? manifest.frames
+    : manifest.frames.slice(0, CONTACT_SHEET_PREVIEW);
+  const hiddenCount = manifest.frames.length - frames.length;
 
-        return (
-          <View key={frame.frameId} style={styles.moment}>
-            {uri ? (
-              <Image
-                accessibilityLabel={`Moment at ${time}`}
-                source={{ uri }}
-                style={styles.momentImage}
-              />
-            ) : (
-              <View style={[styles.momentImage, styles.momentUnavailable]}>
-                <Text style={styles.momentUnavailableText}>No preview</Text>
-              </View>
-            )}
-            <Text style={styles.momentTime}>At {time}</Text>
-          </View>
-        );
-      })}
-    </ScrollView>
+  return (
+    <View>
+      <View accessibilityLabel="Moments from this room" style={styles.sheet}>
+        {frames.map((frame) => {
+          const uri = safeThumbnailUrl(frame.thumbnailUrl);
+          const time = formatMomentTime(frame.timestamp);
+
+          return (
+            <View key={frame.frameId} style={styles.moment}>
+              {uri ? (
+                <Image
+                  accessibilityLabel={`Moment at ${time}`}
+                  source={{ uri }}
+                  style={styles.momentImage}
+                />
+              ) : (
+                <View
+                  accessibilityLabel={`Moment at ${time}, no preview`}
+                  accessible
+                  style={[styles.momentImage, styles.momentUnavailable]}
+                />
+              )}
+              <Text style={styles.momentTime}>{time}</Text>
+            </View>
+          );
+        })}
+      </View>
+
+      {hiddenCount > 0 || showAll ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setShowAll((value) => !value)}
+          style={({ pressed }) => [
+            styles.linkButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.linkText}>
+            {showAll ? 'Show fewer' : `Show all ${manifest.frames.length}`}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -137,23 +159,19 @@ export function ProcessingSummary({
     <View style={styles.section}>
       {status === 'saved' ? (
         <>
-          <Text accessibilityRole="header" style={styles.title}>
+          <Text accessibilityRole="header" heading style={styles.title}>
             Prepare for finding
           </Text>
           <Text style={styles.body}>
-            Futurium picks out clear moments from this video, so you can check
-            where things were last seen.
-          </Text>
-          <Text style={styles.note}>
-            A copy is sent to your processing server and deleted there
-            afterwards. Your video stays on this phone.
+            Futurium keeps the clearest moments from this video, ready for
+            search later.
           </Text>
         </>
       ) : null}
 
       {isWorking ? (
         <View accessibilityLiveRegion="polite">
-          <Text accessibilityRole="header" style={styles.title}>
+          <Text accessibilityRole="header" heading style={styles.title}>
             {status === 'uploading' ? 'Sending the video' : 'Choosing moments'}
           </Text>
           <View style={styles.workingRow}>
@@ -172,14 +190,13 @@ export function ProcessingSummary({
 
       {status === 'ready' && manifest ? (
         <View accessibilityLiveRegion="polite">
-          <Text accessibilityRole="header" style={styles.title}>
+          <Text accessibilityRole="header" heading style={styles.title}>
             {manifest.retainedFrameCount === 1
               ? '1 moment kept'
               : `${manifest.retainedFrameCount} moments kept`}
           </Text>
-          <Text style={styles.body}>
-            These are the clearest views of the room. Find will use them to show
-            where something was last seen, once search is ready.
+          <Text style={styles.note}>
+            The clearest views of the room, by time in the video.
           </Text>
           <Moments manifest={manifest} />
         </View>
@@ -194,12 +211,14 @@ export function ProcessingSummary({
 
       {status === 'failed' ? (
         <View accessibilityLiveRegion="polite">
-          <Text accessibilityRole="header" style={styles.failedTitle}>
+          <Text accessibilityRole="header" heading style={styles.failedTitle}>
             This memory was not prepared
           </Text>
-          <Text style={styles.body}>
-            Your video is safe on this phone. You can try again.
-          </Text>
+          {isVideoAvailable ? (
+            <Text style={styles.body}>
+              Your video is safe on this phone. You can try again.
+            </Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -263,7 +282,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   details: {
-    marginTop: spacing.md,
+    marginTop: spacing.xxs,
   },
   detailsToggle: {
     alignSelf: 'flex-start',
@@ -271,7 +290,7 @@ const styles = StyleSheet.create({
     minHeight: layout.minTouchTarget,
   },
   detailsToggleText: {
-    color: colors.primary,
+    color: colors.textSecondary,
     fontSize: typography.size.small,
     fontWeight: typography.weight.semibold,
   },
@@ -281,36 +300,38 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.semibold,
     lineHeight: typography.lineHeight.title,
   },
+  linkButton: {
+    alignSelf: 'flex-start',
+    justifyContent: 'center',
+    marginTop: spacing.xxs,
+    minHeight: layout.minTouchTarget,
+  },
+  linkText: {
+    color: colors.primary,
+    fontSize: typography.size.small,
+    fontWeight: typography.weight.semibold,
+  },
   moment: {
-    marginRight: spacing.md,
-    width: 200,
+    padding: spacing.xxs,
+    width: '33.3333%',
   },
   momentImage: {
     aspectRatio: 4 / 3,
-    backgroundColor: colors.sage,
-    borderRadius: radii.sm,
+    backgroundColor: colors.softBlue,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
     width: '100%',
   },
   momentTime: {
-    color: colors.memoryBlue,
-    fontSize: typography.size.small,
+    color: colors.primary,
+    fontSize: typography.size.caption,
     fontVariant: ['tabular-nums'],
-    fontWeight: typography.weight.semibold,
-    marginTop: spacing.xs,
+    fontWeight: typography.weight.medium,
+    lineHeight: typography.lineHeight.caption,
+    marginTop: spacing.xxs,
   },
   momentUnavailable: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  momentUnavailableText: {
-    color: colors.textSecondary,
-    fontSize: typography.size.caption,
-  },
-  moments: {
-    marginTop: spacing.lg,
-  },
-  momentsContent: {
-    paddingRight: spacing.md,
+    borderStyle: 'dashed',
   },
   note: {
     color: colors.textSecondary,
@@ -322,7 +343,17 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   section: {
-    marginTop: spacing.xl,
+    marginTop: spacing.lg,
+  },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: spacing.md,
+    padding: spacing.xs,
   },
   softError: {
     color: colors.error,

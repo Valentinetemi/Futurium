@@ -4,11 +4,11 @@ import { useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
 
+import { Text } from '@/components/app-text';
 import { BackButton } from '@/components/back-button';
 import { PrimaryButton } from '@/components/primary-button';
 import { ScreenContainer } from '@/components/screen-container';
@@ -120,7 +120,7 @@ export function PlusScreen() {
           />
 
           <View style={styles.header}>
-            <Text accessibilityRole="header" style={styles.title}>
+            <Text accessibilityRole="header" heading style={styles.title}>
               Futurium Plus
             </Text>
             <Text style={styles.subtitle}>
@@ -179,11 +179,11 @@ const styles = StyleSheet.create({
     fontSize: typography.size.body,
     fontWeight: typography.weight.bold,
     lineHeight: typography.lineHeight.body,
-    width: 28,
+    width: 24,
   },
   benefitRow: {
     flexDirection: 'row',
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
   },
   benefitText: {
     color: colors.text,
@@ -204,18 +204,18 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: spacing.lg,
-    marginTop: spacing.md,
+    marginTop: spacing.xs,
   },
   notice: {
-    borderLeftColor: colors.memoryBlue,
-    borderLeftWidth: 4,
+    borderLeftColor: colors.secondaryBlue,
+    borderLeftWidth: 2,
     marginBottom: spacing.lg,
     marginTop: spacing.lg,
     paddingLeft: spacing.md,
     paddingVertical: spacing.xxs,
   },
   noticeAttention: {
-    borderLeftColor: colors.apricot,
+    borderLeftColor: colors.accent,
   },
   noticeBody: {
     color: colors.textSecondary,
@@ -231,9 +231,9 @@ const styles = StyleSheet.create({
   },
   plan: {
     borderTopColor: colors.border,
-    borderTopWidth: 1,
-    paddingBottom: spacing.lg,
-    paddingTop: spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingBottom: spacing.md,
+    paddingTop: spacing.md,
   },
   planHeader: {
     alignItems: 'baseline',
@@ -242,18 +242,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   planHighlighted: {
-    backgroundColor: colors.sage,
+    backgroundColor: colors.surface,
     borderColor: colors.border,
     borderRadius: radii.md,
-    borderTopWidth: 0,
-    borderWidth: 1,
-    paddingHorizontal: spacing.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.md,
   },
   planName: {
     color: colors.text,
-    fontSize: typography.size.title,
+    fontSize: typography.size.lead,
     fontWeight: typography.weight.semibold,
-    lineHeight: typography.lineHeight.title,
+    lineHeight: typography.lineHeight.lead,
     marginRight: spacing.sm,
   },
   planNote: {
@@ -269,14 +268,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: spacing.xxl,
-    paddingTop: spacing.xs,
+    paddingBottom: spacing.xl,
+    paddingTop: spacing.xxs,
   },
   subtitle: {
     color: colors.textSecondary,
     fontSize: typography.size.body,
     lineHeight: typography.lineHeight.body,
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
     maxWidth: 520,
   },
   title: {

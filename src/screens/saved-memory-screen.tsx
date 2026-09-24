@@ -9,11 +9,11 @@ import {
   Alert,
   ScrollView,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
 
+import { Text } from '@/components/app-text';
 import { BackButton } from '@/components/back-button';
 import { PrimaryButton } from '@/components/primary-button';
 import { ProcessingSummary } from '@/components/processing-summary';
@@ -35,7 +35,11 @@ import {
   deleteSweepWithVideo,
   isSweepVideoAvailable,
 } from '@/services/sweep-storage';
-import { formatSweepDate, formatSweepDuration } from '@/utils/sweep-formatters';
+import {
+  formatRoomName,
+  formatSweepDate,
+  formatSweepDuration,
+} from '@/utils/sweep-formatters';
 
 type SavedMemoryVideoProps = {
   uri: string;
@@ -277,7 +281,7 @@ export function SavedMemoryScreen() {
   function confirmDelete(savedSweep: Sweep) {
     Alert.alert(
       'Delete this memory?',
-      `${savedSweep.roomName} and its video will be removed from this phone. This cannot be undone.`,
+      `${formatRoomName(savedSweep.roomName)} and its video will be removed from this phone. This cannot be undone.`,
       [
         { style: 'cancel', text: 'Cancel' },
         {
@@ -319,7 +323,11 @@ export function SavedMemoryScreen() {
 
           {!isLoading && (loadError || !sweep) ? (
             <View accessibilityLiveRegion="polite" style={styles.centerState}>
-              <Text accessibilityRole="header" style={styles.centerTitle}>
+              <Text
+                accessibilityRole="header"
+                heading
+                style={styles.centerTitle}
+              >
                 Memory not found
               </Text>
               <Text style={styles.centerCopy}>
@@ -331,8 +339,8 @@ export function SavedMemoryScreen() {
           {!isLoading && sweep ? (
             <>
               <View style={styles.header}>
-                <Text accessibilityRole="header" style={styles.title}>
-                  {sweep.roomName}
+                <Text accessibilityRole="header" heading style={styles.title}>
+                  {formatRoomName(sweep.roomName)}
                 </Text>
                 <Text style={styles.meta}>
                   Recorded {formatSweepDate(sweep.createdAt)} ·{' '}
@@ -358,9 +366,6 @@ export function SavedMemoryScreen() {
               />
 
               <View style={styles.deleteSection}>
-                <Text style={styles.deleteCopy}>
-                  Deleting removes this memory and its video from this phone.
-                </Text>
                 <PrimaryButton
                   accessibilityHint="Asks before permanently deleting this memory and its video"
                   disabled={isDeleting}
@@ -411,12 +416,6 @@ const styles = StyleSheet.create({
     maxWidth: layout.maxContentWidth,
     width: '100%',
   },
-  deleteCopy: {
-    color: colors.textSecondary,
-    fontSize: typography.size.small,
-    lineHeight: typography.lineHeight.small,
-    marginBottom: spacing.md,
-  },
   deleteError: {
     color: colors.error,
     fontSize: typography.size.small,
@@ -425,24 +424,24 @@ const styles = StyleSheet.create({
   },
   deleteSection: {
     borderTopColor: colors.border,
-    borderTopWidth: 1,
-    marginTop: spacing.xxl,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: spacing.xl,
     paddingTop: spacing.lg,
   },
   header: {
-    marginBottom: spacing.lg,
-    marginTop: spacing.md,
+    marginBottom: spacing.md,
+    marginTop: spacing.xs,
   },
   meta: {
     color: colors.textSecondary,
-    fontSize: typography.size.body,
-    lineHeight: typography.lineHeight.body,
-    marginTop: spacing.xs,
+    fontSize: typography.size.small,
+    lineHeight: typography.lineHeight.small,
+    marginTop: spacing.xxs,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: spacing.xxl,
-    paddingTop: spacing.xs,
+    paddingBottom: spacing.xl,
+    paddingTop: spacing.xxs,
   },
   title: {
     color: colors.text,
@@ -454,10 +453,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   videoFrame: {
-    aspectRatio: 3 / 4,
+    aspectRatio: 4 / 5,
     backgroundColor: colors.camera,
     borderRadius: radii.md,
-    maxHeight: 560,
+    maxHeight: 460,
     overflow: 'hidden',
     width: '100%',
   },
@@ -470,19 +469,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderRadius: radii.md,
-    borderWidth: 1,
-    padding: spacing.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.md,
   },
   videoMessageBody: {
     color: colors.textSecondary,
-    fontSize: typography.size.body,
-    lineHeight: typography.lineHeight.body,
+    fontSize: typography.size.small,
+    lineHeight: typography.lineHeight.small,
     marginTop: spacing.xs,
   },
   videoMessageTitle: {
     color: colors.text,
-    fontSize: typography.size.bodyLarge,
+    fontSize: typography.size.body,
     fontWeight: typography.weight.semibold,
-    lineHeight: typography.lineHeight.bodyLarge,
+    lineHeight: typography.lineHeight.body,
   },
 });

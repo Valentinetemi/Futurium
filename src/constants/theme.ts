@@ -1,24 +1,26 @@
 export const colors = {
-  background: '#F7F4EC',
+  background: '#F7F3EA',
   surface: '#FFFEFA',
-  text: '#17201B',
-  textSecondary: '#68736C',
-  primary: '#285447',
+  text: '#15191E',
+  textSecondary: '#68727A',
+  primary: '#274C67',
   onPrimary: '#FFFFFF',
-  memoryBlue: '#52718A',
-  sage: '#DFE9E2',
-  apricot: '#E6A276',
+  // Secondary blue and the warm accent are for lines, dots and icons only;
+  // neither has enough contrast for text on the cream background.
+  secondaryBlue: '#5F7F95',
+  softBlue: '#DFE9EF',
+  accent: '#D99168',
   error: '#B95751',
-  border: '#D8D7CF',
+  border: '#D6D9D8',
 
   // Camera surfaces keep the video legible without tinting it.
-  camera: '#111613',
-  cameraPlate: 'rgba(17, 22, 19, 0.78)',
+  camera: '#111418',
+  cameraPlate: 'rgba(17, 20, 24, 0.78)',
   cameraBorder: 'rgba(255, 255, 255, 0.55)',
   cameraText: '#FFFFFF',
   cameraTextSecondary: 'rgba(255, 255, 255, 0.8)',
   errorOnDark: '#F2BDB8',
-  backdrop: 'rgba(23, 32, 27, 0.5)',
+  backdrop: 'rgba(21, 25, 30, 0.5)',
   transparent: 'transparent',
 } as const;
 
@@ -30,40 +32,44 @@ export const spacing = {
   lg: 24,
   xl: 32,
   xxl: 48,
-  xxxl: 64,
 } as const;
 
 export const radii = {
-  sm: 6,
-  md: 10,
-  lg: 14,
+  sm: 4,
+  md: 8,
+  lg: 12,
   pill: 999,
 } as const;
 
 export const typography = {
   size: {
-    caption: 14,
-    small: 16,
-    body: 18,
-    bodyLarge: 20,
-    title: 24,
-    heading: 30,
-    display: 36,
+    caption: 13,
+    small: 15,
+    body: 17,
+    lead: 19,
+    title: 21,
+    heading: 26,
   },
   lineHeight: {
-    caption: 20,
-    small: 23,
-    body: 26,
-    bodyLarge: 28,
-    title: 31,
-    heading: 37,
-    display: 43,
+    caption: 18,
+    small: 21,
+    body: 24,
+    lead: 26,
+    title: 27,
+    heading: 32,
   },
   weight: {
     regular: '400',
     medium: '500',
     semibold: '600',
     bold: '700',
+  },
+  // Dynamic Type still applies, but is capped so the largest settings do not
+  // push controls off screen. Headings are capped harder than body text.
+  maxScale: {
+    body: 1.5,
+    heading: 1.25,
+    control: 1.3,
   },
 } as const;
 
@@ -72,8 +78,8 @@ export const layout = {
   horizontalPadding: spacing.lg,
   horizontalPaddingCompact: spacing.md,
   maxContentWidth: 640,
-  minTouchTarget: 48,
-  buttonHeight: 58,
+  minTouchTarget: 44,
+  buttonHeight: 52,
 } as const;
 
 export const shadows = {
@@ -81,8 +87,8 @@ export const shadows = {
     elevation: 1,
     shadowColor: colors.text,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
   },
 } as const;
 

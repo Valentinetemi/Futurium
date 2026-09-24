@@ -1,6 +1,7 @@
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
+import { Text } from '@/components/app-text';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 
 type BackButtonProps = {
@@ -20,7 +21,7 @@ export function BackButton({
     <Pressable
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
-      hitSlop={8}
+      hitSlop={{ bottom: 8, left: 8, right: 16, top: 8 }}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
@@ -28,8 +29,18 @@ export function BackButton({
         pressed && styles.buttonPressed,
       ]}
     >
-      <Text style={[styles.arrow, dark && styles.textDark]}>‹</Text>
-      <Text style={[styles.label, dark && styles.textDark]}>{label}</Text>
+      <Text
+        maxFontSizeMultiplier={typography.maxScale.control}
+        style={[styles.arrow, dark && styles.textDark]}
+      >
+        ‹
+      </Text>
+      <Text
+        maxFontSizeMultiplier={typography.maxScale.control}
+        style={[styles.label, dark && styles.textDark]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -37,17 +48,17 @@ export function BackButton({
 const styles = StyleSheet.create({
   arrow: {
     color: colors.primary,
-    fontSize: 30,
-    lineHeight: 32,
-    marginRight: spacing.xs,
-    marginTop: -3,
+    fontSize: 24,
+    lineHeight: 26,
+    marginRight: spacing.xxs + 2,
+    marginTop: -2,
   },
   button: {
     alignItems: 'center',
     alignSelf: 'flex-start',
     flexDirection: 'row',
     minHeight: layout.minTouchTarget,
-    paddingRight: spacing.md,
+    paddingRight: spacing.sm,
   },
   buttonDark: {
     backgroundColor: colors.cameraPlate,
@@ -59,8 +70,8 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.primary,
-    fontSize: typography.size.body,
-    fontWeight: typography.weight.semibold,
+    fontSize: typography.size.small,
+    fontWeight: typography.weight.medium,
   },
   textDark: {
     color: colors.cameraText,

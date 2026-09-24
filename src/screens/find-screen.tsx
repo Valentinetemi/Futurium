@@ -3,28 +3,19 @@ import { StatusBar } from 'expo-status-bar';
 import {
   ScrollView,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
 
+import { Text } from '@/components/app-text';
 import { BackButton } from '@/components/back-button';
 import { ScreenContainer } from '@/components/screen-container';
-import { colors, layout, radii, spacing, typography } from '@/constants/theme';
+import { colors, layout, spacing, typography } from '@/constants/theme';
 
 const STEPS = [
-  {
-    body: 'A short, slow video of the room.',
-    title: 'Record a room',
-  },
-  {
-    body: 'Futurium keeps the clearest moments from the video.',
-    title: 'Prepare the memory',
-  },
-  {
-    body: 'Type an object, like “glasses”. Futurium will show the moment and room where it was last seen.',
-    title: 'Ask for something',
-  },
+  'Record a room.',
+  'Prepare the memory.',
+  'Ask for an object, and see where it was last seen.',
 ] as const;
 
 export function FindScreen() {
@@ -51,48 +42,36 @@ export function FindScreen() {
             onPress={() => router.back()}
           />
 
-          <View style={styles.header}>
-            <Text accessibilityRole="header" style={styles.title}>
-              Find something
-            </Text>
-            <Text style={styles.subtitle}>
-              Searching isn’t available yet. When it is, you’ll be able to ask
-              where something was last seen.
-            </Text>
-          </View>
+          <Text accessibilityRole="header" heading style={styles.title}>
+            Find something
+          </Text>
+          <Text style={styles.subtitle}>
+            Search is not available yet. This is how it will look.
+          </Text>
 
           <View
-            accessibilityLabel="Example only. Where are my reading glasses? Last seen in the living room, on the side table."
+            accessibilityLabel="Example, not a real result. Where are my reading glasses? Last seen in the living room, on the side table."
             accessible
             style={styles.example}
           >
-            <Text style={styles.exampleLabel}>Example, not a real result</Text>
+            <Text style={styles.exampleLabel}>Example</Text>
             <Text style={styles.exampleQuestion}>
-              “Where are my reading glasses?”
+              Where are my reading glasses?
             </Text>
             <Text style={styles.exampleAnswer}>
-              Last seen in the <Text style={styles.strong}>Living room</Text>,
-              on the side table.
+              Last seen in the living room, on the side table.
             </Text>
           </View>
 
-          <Text accessibilityRole="header" style={styles.sectionTitle}>
+          <Text accessibilityRole="header" style={styles.stepsTitle}>
             How it will work
           </Text>
           {STEPS.map((step, index) => (
-            <View key={step.title} style={styles.step}>
+            <View key={step} style={styles.step}>
               <Text style={styles.stepNumber}>{index + 1}</Text>
-              <View style={styles.stepCopy}>
-                <Text style={styles.stepTitle}>{step.title}</Text>
-                <Text style={styles.stepBody}>{step.body}</Text>
-              </View>
+              <Text style={styles.stepText}>{step}</Text>
             </View>
           ))}
-
-          <Text style={styles.note}>
-            For now, you can record rooms and prepare memories. Search will use
-            those memories when it is added.
-          </Text>
         </View>
       </ScrollView>
     </ScreenContainer>
@@ -106,20 +85,18 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   example: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderLeftColor: colors.memoryBlue,
-    borderLeftWidth: 4,
-    borderRadius: radii.sm,
-    borderWidth: 1,
+    borderLeftColor: colors.primary,
+    borderLeftWidth: 2,
     marginBottom: spacing.xl,
-    padding: spacing.lg,
+    marginTop: spacing.lg,
+    paddingLeft: spacing.md,
+    paddingVertical: spacing.xxs,
   },
   exampleAnswer: {
     color: colors.text,
     fontSize: typography.size.body,
     lineHeight: typography.lineHeight.body,
-    marginTop: spacing.sm,
+    marginTop: spacing.xxs,
   },
   exampleLabel: {
     color: colors.textSecondary,
@@ -127,78 +104,51 @@ const styles = StyleSheet.create({
     lineHeight: typography.lineHeight.caption,
   },
   exampleQuestion: {
-    color: colors.memoryBlue,
-    fontSize: typography.size.bodyLarge,
+    color: colors.primary,
+    fontSize: typography.size.lead,
     fontWeight: typography.weight.semibold,
-    lineHeight: typography.lineHeight.bodyLarge,
-    marginTop: spacing.xs,
-  },
-  header: {
-    marginBottom: spacing.xl,
-    marginTop: spacing.md,
-  },
-  note: {
-    borderTopColor: colors.border,
-    borderTopWidth: 1,
-    color: colors.textSecondary,
-    fontSize: typography.size.small,
-    lineHeight: typography.lineHeight.small,
-    marginTop: spacing.lg,
-    paddingTop: spacing.lg,
+    lineHeight: typography.lineHeight.lead,
+    marginTop: spacing.xxs,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: spacing.xxl,
-    paddingTop: spacing.xs,
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: typography.size.title,
-    fontWeight: typography.weight.semibold,
-    lineHeight: typography.lineHeight.title,
-    marginBottom: spacing.xs,
+    paddingBottom: spacing.xl,
+    paddingTop: spacing.xxs,
   },
   step: {
     flexDirection: 'row',
-    paddingVertical: spacing.sm,
-  },
-  stepBody: {
-    color: colors.textSecondary,
-    fontSize: typography.size.body,
-    lineHeight: typography.lineHeight.body,
-    marginTop: 2,
-  },
-  stepCopy: {
-    flex: 1,
+    marginTop: spacing.xs,
   },
   stepNumber: {
-    color: colors.primary,
-    fontSize: typography.size.bodyLarge,
+    color: colors.textSecondary,
+    fontSize: typography.size.small,
     fontVariant: ['tabular-nums'],
-    fontWeight: typography.weight.bold,
-    lineHeight: typography.lineHeight.bodyLarge,
-    width: 32,
+    lineHeight: typography.lineHeight.small,
+    width: 24,
   },
-  stepTitle: {
+  stepText: {
+    color: colors.textSecondary,
+    flex: 1,
+    fontSize: typography.size.small,
+    lineHeight: typography.lineHeight.small,
+  },
+  stepsTitle: {
     color: colors.text,
-    fontSize: typography.size.body,
+    fontSize: typography.size.small,
     fontWeight: typography.weight.semibold,
-    lineHeight: typography.lineHeight.body,
-  },
-  strong: {
-    fontWeight: typography.weight.semibold,
+    lineHeight: typography.lineHeight.small,
   },
   subtitle: {
     color: colors.textSecondary,
     fontSize: typography.size.body,
     lineHeight: typography.lineHeight.body,
-    marginTop: spacing.sm,
-    maxWidth: 520,
+    marginTop: spacing.xs,
   },
   title: {
     color: colors.text,
     fontSize: typography.size.heading,
     fontWeight: typography.weight.semibold,
     lineHeight: typography.lineHeight.heading,
+    marginTop: spacing.xs,
   },
 });

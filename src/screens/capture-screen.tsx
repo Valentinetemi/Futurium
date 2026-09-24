@@ -17,12 +17,11 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
 
+import { Text, TextInput } from '@/components/app-text';
 import { BackButton } from '@/components/back-button';
 import { PrimaryButton } from '@/components/primary-button';
 import { ScreenContainer } from '@/components/screen-container';
@@ -54,7 +53,7 @@ function SweepPreview({ isSaving, onDiscard, onSave, uri }: SweepPreviewProps) {
   return (
     <View style={styles.previewScreen}>
       <View style={styles.previewHeader}>
-        <Text accessibilityRole="header" style={styles.previewTitle}>
+        <Text accessibilityRole="header" heading style={styles.previewTitle}>
           Keep this recording?
         </Text>
         <Text style={styles.previewCopy}>
@@ -136,7 +135,7 @@ function RoomNameModal({
         />
         <View style={styles.roomSheet}>
           <View style={styles.sheetHandle} />
-          <Text accessibilityRole="header" style={styles.sheetTitle}>
+          <Text accessibilityRole="header" heading style={styles.sheetTitle}>
             Which room is this?
           </Text>
           <Text style={styles.sheetCopy}>
@@ -416,7 +415,11 @@ export function CaptureScreen() {
           />
 
           <View style={styles.permissionBody}>
-            <Text accessibilityRole="header" style={styles.permissionTitle}>
+            <Text
+              accessibilityRole="header"
+              heading
+              style={styles.permissionTitle}
+            >
               Futurium needs your camera and microphone
             </Text>
             <Text style={styles.permissionCopy}>
@@ -499,10 +502,19 @@ export function CaptureScreen() {
             style={[styles.timerPlate, isRecording && styles.timerRecording]}
           >
             {isRecording ? <View style={styles.recordingDot} /> : null}
-            <Text style={styles.timerText}>
+            <Text
+              maxFontSizeMultiplier={typography.maxScale.control}
+              style={styles.timerText}
+            >
               {formatSweepDuration(elapsedSeconds)}
             </Text>
-            <Text style={styles.timerLimit}> / 0:30</Text>
+            <Text
+              maxFontSizeMultiplier={typography.maxScale.control}
+              style={styles.timerLimit}
+            >
+              {' '}
+              / 0:30
+            </Text>
           </View>
         </View>
       </View>
@@ -535,6 +547,7 @@ export function CaptureScreen() {
           onPress={isRecording ? stopRecording : beginRecording}
           style={({ pressed }) => [
             styles.recordControl,
+            isRecording && styles.recordControlActive,
             !isCameraReady && styles.controlDisabled,
             pressed && styles.controlPressed,
           ]}
@@ -548,7 +561,10 @@ export function CaptureScreen() {
           )}
         </Pressable>
 
-        <Text style={styles.controlLabel}>
+        <Text
+          maxFontSizeMultiplier={typography.maxScale.control}
+          style={styles.controlLabel}
+        >
           {isCameraReady ? (isRecording ? 'Stop' : 'Record') : 'Getting ready'}
         </Text>
       </View>
@@ -663,9 +679,9 @@ const styles = StyleSheet.create({
   },
   permissionTitle: {
     color: colors.text,
-    fontSize: typography.size.heading,
+    fontSize: typography.size.title,
     fontWeight: typography.weight.semibold,
-    lineHeight: typography.lineHeight.heading,
+    lineHeight: typography.lineHeight.title,
     maxWidth: 480,
   },
   previewActions: {
@@ -703,18 +719,21 @@ const styles = StyleSheet.create({
   recordCircle: {
     backgroundColor: colors.error,
     borderRadius: radii.pill,
-    height: 60,
-    width: 60,
+    height: 54,
+    width: 54,
   },
   recordControl: {
     alignItems: 'center',
     borderColor: colors.cameraText,
     borderRadius: radii.pill,
     borderWidth: 4,
-    height: 84,
+    height: 76,
     justifyContent: 'center',
-    marginTop: spacing.md,
-    width: 84,
+    marginTop: spacing.sm,
+    width: 76,
+  },
+  recordControlActive: {
+    borderColor: colors.error,
   },
   recordingDot: {
     backgroundColor: colors.error,
@@ -777,8 +796,8 @@ const styles = StyleSheet.create({
   stopSquare: {
     backgroundColor: colors.error,
     borderRadius: radii.sm,
-    height: 34,
-    width: 34,
+    height: 30,
+    width: 30,
   },
   suggestion: {
     backgroundColor: colors.surface,
@@ -795,7 +814,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   suggestionSelected: {
-    backgroundColor: colors.sage,
+    backgroundColor: colors.softBlue,
     borderColor: colors.primary,
   },
   suggestionText: {
