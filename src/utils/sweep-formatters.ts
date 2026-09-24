@@ -75,3 +75,17 @@ export function getSweepStatusLabel(status: SweepStatus) {
 
   return labels[status];
 }
+
+// Display only: stored room names are never rewritten.
+export function formatRoomName(roomName: string) {
+  const trimmed = roomName.trim().replace(/\s+/g, ' ');
+
+  if (!trimmed) {
+    return 'Untitled room';
+  }
+
+  const hasLowercase = trimmed !== trimmed.toUpperCase();
+  const base = hasLowercase ? trimmed : trimmed.toLowerCase();
+
+  return base.charAt(0).toUpperCase() + base.slice(1);
+}
