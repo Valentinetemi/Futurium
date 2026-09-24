@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
 import {
   colors,
@@ -17,8 +17,8 @@ type PrimaryButtonProps = {
   accessibilityHint?: string;
   disabled?: boolean;
   label: string;
+  onDark?: boolean;
   onPress?: ComponentProps<typeof Pressable>['onPress'];
-  showArrow?: boolean;
   style?: StyleProp<ViewStyle>;
   variant?: ButtonVariant;
 };
@@ -27,11 +27,13 @@ export function PrimaryButton({
   accessibilityHint,
   disabled = false,
   label,
+  onDark = false,
   onPress,
-  showArrow = false,
   style,
   variant = 'primary',
 }: PrimaryButtonProps) {
+  const isOutlined = variant !== 'primary';
+
   return (
     <Pressable
       accessibilityHint={disabled ? undefined : accessibilityHint}
@@ -41,90 +43,81 @@ export function PrimaryButton({
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
-        variant === 'secondary' && styles.secondary,
+        isOutlined && styles.outlined,
         variant === 'danger' && styles.danger,
+        onDark && isOutlined && styles.outlinedOnDark,
         disabled && styles.disabled,
         style,
         pressed && styles.pressed,
       ]}
     >
-      <View style={styles.labelRow}>
-        <Text
-          numberOfLines={1}
-          style={[
-            styles.label,
-            variant === 'secondary' && styles.labelSecondary,
-            variant === 'danger' && styles.labelDanger,
-            disabled && styles.labelDisabled,
-          ]}
-        >
-          {label}
-        </Text>
-        {showArrow ? <Text style={styles.arrow}>→</Text> : null}
-      </View>
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.label,
+          variant === 'secondary' && styles.labelSecondary,
+          variant === 'danger' && styles.labelDanger,
+          onDark && isOutlined && styles.labelOnDark,
+          disabled && styles.labelDisabled,
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  arrow: {
-    color: colors.white,
-    fontSize: 18,
-    marginLeft: spacing.sm,
-  },
   button: {
-    ...shadows.card,
+    ...shadows.subtle,
     alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: colors.sageDark,
-    borderColor: colors.sageDark,
-    borderRadius: radii.pill,
-    borderWidth: 1,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
     justifyContent: 'center',
-    minHeight: 56,
+    minHeight: layout.buttonHeight,
     paddingHorizontal: spacing.lg,
     width: '100%',
   },
   danger: {
-    backgroundColor: colors.dangerSoft,
-    borderColor: colors.dangerSoft,
-    elevation: 0,
-    shadowOpacity: 0,
+    borderColor: colors.error,
   },
   disabled: {
-    backgroundColor: colors.canvasMuted,
-    borderColor: colors.line,
+    backgroundColor: colors.border,
+    borderColor: colors.border,
     elevation: 0,
     shadowOpacity: 0,
   },
   label: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: typography.size.body,
     fontWeight: typography.weight.semibold,
     lineHeight: typography.lineHeight.body,
   },
   labelDanger: {
-    color: colors.danger,
+    color: colors.error,
   },
   labelDisabled: {
-    color: colors.muted,
+    color: colors.textSecondary,
   },
-  labelRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    minHeight: layout.minTouchTarget,
+  labelOnDark: {
+    color: colors.cameraText,
   },
   labelSecondary: {
-    color: colors.ink,
+    color: colors.text,
   },
-  pressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.99 }],
-  },
-  secondary: {
+  outlined: {
     backgroundColor: colors.surface,
-    borderColor: colors.lineStrong,
+    borderColor: colors.border,
     elevation: 0,
     shadowOpacity: 0,
+  },
+  outlinedOnDark: {
+    backgroundColor: colors.transparent,
+    borderColor: colors.cameraBorder,
+  },
+  pressed: {
+    opacity: 0.8,
   },
 });

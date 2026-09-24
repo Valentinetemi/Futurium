@@ -12,6 +12,21 @@ import { BackButton } from '@/components/back-button';
 import { ScreenContainer } from '@/components/screen-container';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 
+const STEPS = [
+  {
+    body: 'A short, slow video of the room.',
+    title: 'Record a room',
+  },
+  {
+    body: 'Futurium keeps the clearest moments from the video.',
+    title: 'Prepare the memory',
+  },
+  {
+    body: 'Type an object, like “glasses”. Futurium will show the moment and room where it was last seen.',
+    title: 'Ask for something',
+  },
+] as const;
+
 export function FindScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -37,40 +52,47 @@ export function FindScreen() {
           />
 
           <View style={styles.header}>
-            <Text style={styles.eyebrow}>VISUAL SEARCH</Text>
             <Text accessibilityRole="header" style={styles.title}>
               Find something
             </Text>
             <Text style={styles.subtitle}>
-              Ask where an object was last seen across your recorded spaces.
+              Searching isn’t available yet. When it is, you’ll be able to ask
+              where something was last seen.
             </Text>
           </View>
 
           <View
-            accessibilityLabel="Search is not available yet"
-            style={styles.searchField}
+            accessibilityLabel="Example only. Where are my reading glasses? Last seen in the living room, on the side table."
+            accessible
+            style={styles.example}
           >
-            <View style={styles.searchLens} />
-            <Text style={styles.searchPlaceholder}>
-              What are you looking for?
+            <Text style={styles.exampleLabel}>Example, not a real result</Text>
+            <Text style={styles.exampleQuestion}>
+              “Where are my reading glasses?”
+            </Text>
+            <Text style={styles.exampleAnswer}>
+              Last seen in the <Text style={styles.strong}>Living room</Text>,
+              on the side table.
             </Text>
           </View>
 
-          <View style={styles.placeholder}>
-            <View style={styles.placeholderMark}>
-              <View style={styles.placeholderDot} />
+          <Text accessibilityRole="header" style={styles.sectionTitle}>
+            How it will work
+          </Text>
+          {STEPS.map((step, index) => (
+            <View key={step.title} style={styles.step}>
+              <Text style={styles.stepNumber}>{index + 1}</Text>
+              <View style={styles.stepCopy}>
+                <Text style={styles.stepTitle}>{step.title}</Text>
+                <Text style={styles.stepBody}>{step.body}</Text>
+              </View>
             </View>
-            <Text style={styles.placeholderTitle}>Search is coming next</Text>
-            <Text style={styles.placeholderCopy}>
-              The future retrieval service will inspect saved sweep frames and
-              return the most relevant view and location.
-            </Text>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                PLACEHOLDER · NO AI CONNECTED
-              </Text>
-            </View>
-          </View>
+          ))}
+
+          <Text style={styles.note}>
+            For now, you can record rooms and prepare memories. Search will use
+            those memories when it is added.
+          </Text>
         </View>
       </ScrollView>
     </ScreenContainer>
@@ -78,113 +100,105 @@ export function FindScreen() {
 }
 
 const styles = StyleSheet.create({
-  badge: {
-    backgroundColor: colors.canvasMuted,
-    borderRadius: radii.pill,
-    marginTop: spacing.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  badgeText: {
-    color: colors.muted,
-    fontSize: 9,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.1,
-  },
   contentWidth: {
     alignSelf: 'center',
     maxWidth: layout.maxContentWidth,
     width: '100%',
   },
-  eyebrow: {
-    color: colors.sage,
-    fontSize: typography.size.caption,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.5,
-  },
-  header: {
-    marginBottom: spacing.xl,
-    marginTop: spacing.xl,
-  },
-  placeholder: {
-    alignItems: 'center',
+  example: {
     backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderRadius: radii.lg,
+    borderColor: colors.border,
+    borderLeftColor: colors.memoryBlue,
+    borderLeftWidth: 4,
+    borderRadius: radii.sm,
     borderWidth: 1,
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xxl,
+    marginBottom: spacing.xl,
+    padding: spacing.lg,
   },
-  placeholderCopy: {
-    color: colors.muted,
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
-    marginTop: spacing.xs,
-    maxWidth: 420,
-    textAlign: 'center',
+  exampleAnswer: {
+    color: colors.text,
+    fontSize: typography.size.body,
+    lineHeight: typography.lineHeight.body,
+    marginTop: spacing.sm,
   },
-  placeholderDot: {
-    backgroundColor: colors.sage,
-    borderRadius: radii.pill,
-    height: 12,
-    width: 12,
+  exampleLabel: {
+    color: colors.textSecondary,
+    fontSize: typography.size.caption,
+    lineHeight: typography.lineHeight.caption,
   },
-  placeholderMark: {
-    alignItems: 'center',
-    backgroundColor: colors.sageSoft,
-    borderRadius: radii.pill,
-    height: 64,
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-    width: 64,
-  },
-  placeholderTitle: {
-    color: colors.ink,
+  exampleQuestion: {
+    color: colors.memoryBlue,
     fontSize: typography.size.bodyLarge,
     fontWeight: typography.weight.semibold,
     lineHeight: typography.lineHeight.bodyLarge,
+    marginTop: spacing.xs,
+  },
+  header: {
+    marginBottom: spacing.xl,
+    marginTop: spacing.md,
+  },
+  note: {
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    color: colors.textSecondary,
+    fontSize: typography.size.small,
+    lineHeight: typography.lineHeight.small,
+    marginTop: spacing.lg,
+    paddingTop: spacing.lg,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.xxl,
     paddingTop: spacing.xs,
   },
-  searchField: {
-    alignItems: 'center',
-    backgroundColor: colors.canvasMuted,
-    borderColor: colors.line,
-    borderRadius: radii.md,
-    borderWidth: 1,
+  sectionTitle: {
+    color: colors.text,
+    fontSize: typography.size.title,
+    fontWeight: typography.weight.semibold,
+    lineHeight: typography.lineHeight.title,
+    marginBottom: spacing.xs,
+  },
+  step: {
     flexDirection: 'row',
-    minHeight: 58,
-    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
-  searchLens: {
-    borderColor: colors.muted,
-    borderRadius: radii.pill,
-    borderWidth: 1.5,
-    height: 17,
-    marginRight: spacing.sm,
-    width: 17,
-  },
-  searchPlaceholder: {
-    color: colors.faint,
+  stepBody: {
+    color: colors.textSecondary,
     fontSize: typography.size.body,
+    lineHeight: typography.lineHeight.body,
+    marginTop: 2,
+  },
+  stepCopy: {
+    flex: 1,
+  },
+  stepNumber: {
+    color: colors.primary,
+    fontSize: typography.size.bodyLarge,
+    fontVariant: ['tabular-nums'],
+    fontWeight: typography.weight.bold,
+    lineHeight: typography.lineHeight.bodyLarge,
+    width: 32,
+  },
+  stepTitle: {
+    color: colors.text,
+    fontSize: typography.size.body,
+    fontWeight: typography.weight.semibold,
+    lineHeight: typography.lineHeight.body,
+  },
+  strong: {
+    fontWeight: typography.weight.semibold,
   },
   subtitle: {
-    color: colors.inkSoft,
-    fontSize: typography.size.bodyLarge,
-    lineHeight: typography.lineHeight.bodyLarge,
+    color: colors.textSecondary,
+    fontSize: typography.size.body,
+    lineHeight: typography.lineHeight.body,
     marginTop: spacing.sm,
     maxWidth: 520,
   },
   title: {
-    color: colors.ink,
+    color: colors.text,
     fontSize: typography.size.heading,
     fontWeight: typography.weight.semibold,
-    letterSpacing: -1,
     lineHeight: typography.lineHeight.heading,
-    marginTop: spacing.sm,
   },
 });
