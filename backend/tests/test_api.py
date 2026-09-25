@@ -12,6 +12,7 @@ from futurium_api.job_store import JobStore
 from futurium_api.main import create_app
 from futurium_api.models import ProcessingManifest, ProcessingStatus
 from futurium_api.processing import FrameProcessor
+from futurium_api.transcription import TranscriptionError
 
 
 def wait_for_terminal_manifest(
@@ -279,3 +280,100 @@ def test_search_rejects_blank_query(tmp_path: Path, fake_embedder) -> None:
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
+
+
+def test_transcribes_short_audio_and_removes_temporary_upload(
+    tmp_path: Path, fake_embedder, fake_transcriber
+) -> None:
+    data_dir = tmp_path / "jobs"
+    client = TestClient(
+        create_app(Settings(data_dir=data_dir), fake_embedder, fake_transcriber)
+    )
+
+    response = client.post(
+        "/transcriptions",
+        files={"audio": ("../../ignored-name.m4a", b"voice bytes", "audio/x-m4a")},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"transcription": "Where are my glasses?"}
+    assert fake_transcriber.calls == [(b"voice bytes", "audio/m4a")]
+    assert list(data_dir.glob("voice-query-*.upload")) == []
+
+
+def test_transcription_failure_is_structured_and_removes_temporary_upload(
+    tmp_path: Path, fake_embedder, fake_transcriber
+) -> None:
+    data_dir = tmp_path / "jobs"
+    fake_transcriber.error = TranscriptionError(
+        "transcription_failed", "The voice query could not be transcribed."
+    )
+    client = TestClient(
+        create_app(Settings(data_dir=data_dir), fake_embedder, fake_transcriber)
+    )
+
+    response = client.post(
+        "/transcriptions",
+        files={"audio": ("query.m4a", b"voice bytes", "audio/m4a")},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"] == {
+        "code": "transcription_failed",
+        "message": "The voice query could not be transcribed.",
+    }
+    assert list(data_dir.glob("voice-query-*.upload")) == []
+
+
+def test_transcription_rejects_unsupported_empty_and_oversized_audio(
+    tmp_path: Path, fake_embedder, fake_transcriber
+) -> None:
+    data_dir = tmp_path / "jobs"
+    client = TestClient(
+        create_app(
+            Settings(data_dir=data_dir, max_audio_upload_bytes=8),
+            fake_embedder,
+            fake_transcriber,
+        )
+    )
+
+    unsupported = client.post(
+        "/transcriptions",
+        files={"audio": ("query.txt", b"private words", "text/plain")},
+    )
+    empty = client.post(
+        "/transcriptions",
+        files={"audio": ("query.m4a", b"", "audio/m4a")},
+    )
+    oversized = client.post(
+        "/transcriptions",
+        files={"audio": ("query.m4a", b"x" * 9, "audio/m4a")},
+    )
+
+    assert unsupported.status_code == 415
+    assert unsupported.json()["error"]["code"] == "unsupported_audio_type"
+    assert empty.status_code == 400
+    assert empty.json()["error"]["code"] == "empty_upload"
+    assert oversized.status_code == 413
+    assert oversized.json()["error"]["code"] == "upload_too_large"
+    assert fake_transcriber.calls == []
+    assert list(data_dir.glob("voice-query-*.upload")) == []
+
+
+def test_transcription_reports_missing_server_configuration(
+    tmp_path: Path, fake_embedder
+) -> None:
+    client = TestClient(
+        create_app(
+            Settings(data_dir=tmp_path / "jobs", gemini_api_key=None),
+            fake_embedder,
+        )
+    )
+
+    response = client.post(
+        "/transcriptions",
+        files={"audio": ("query.m4a", b"voice bytes", "audio/m4a")},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "transcription_unavailable"

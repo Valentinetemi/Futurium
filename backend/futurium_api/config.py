@@ -39,6 +39,9 @@ class Settings:
     embedding_pretrained: str = "laion2b_s34b_b79k"
     embedding_device: str = "auto"
     search_confidence_threshold: float = 0.23
+    max_audio_upload_bytes: int = 5 * 1024 * 1024
+    gemini_api_key: str | None = None
+    gemini_transcription_model: str = "gemini-3.5-transcribe"
 
     @classmethod
     def from_environment(cls) -> Settings:
@@ -67,5 +70,12 @@ class Settings:
             embedding_device=os.getenv("FUTURIUM_EMBEDDING_DEVICE", "auto"),
             search_confidence_threshold=_similarity_threshold(
                 "FUTURIUM_SEARCH_CONFIDENCE_THRESHOLD", 0.23
+            ),
+            max_audio_upload_bytes=_positive_int(
+                "FUTURIUM_MAX_AUDIO_UPLOAD_BYTES", 5 * 1024 * 1024
+            ),
+            gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
+            gemini_transcription_model=os.getenv(
+                "FUTURIUM_GEMINI_TRANSCRIPTION_MODEL", "gemini-3.5-transcribe"
             ),
         )

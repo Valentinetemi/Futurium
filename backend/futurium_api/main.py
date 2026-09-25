@@ -28,15 +28,28 @@ from .models import (
     ProcessingStatus,
     SearchRequest,
     SearchResponse,
+    TranscriptionResponse,
 )
 from .processing import FrameProcessor
 from .search import SemanticSearch
+from .transcription import GeminiTranscriber, Transcriber, TranscriptionError
 
 ALLOWED_MEDIA_TYPES = {
     "video/mp4",
     "video/quicktime",
     "video/webm",
     "video/x-m4v",
+}
+AUDIO_MEDIA_TYPES = {
+    "audio/aac": "audio/aac",
+    "audio/m4a": "audio/m4a",
+    "audio/mp3": "audio/mp3",
+    "audio/mp4": "audio/m4a",
+    "audio/mpeg": "audio/mpeg",
+    "audio/ogg": "audio/ogg",
+    "audio/wav": "audio/wav",
+    "audio/webm": "audio/webm",
+    "audio/x-m4a": "audio/m4a",
 }
 UPLOAD_CHUNK_BYTES = 1024 * 1024
 
@@ -55,7 +68,7 @@ def error_response(status_code: int, code: str, message: str) -> JSONResponse:
 
 
 async def save_bounded_upload(
-    upload: UploadFile, destination: Path, max_bytes: int
+    upload: UploadFile, destination: Path, max_bytes: int, media_label: str = "Video"
 ) -> int:
     total_bytes = 0
     try:
@@ -66,14 +79,21 @@ async def save_bounded_upload(
                     raise ApiError(
                         413,
                         "upload_too_large",
-                        f"Video exceeds the {max_bytes // (1024 * 1024)} MiB limit.",
+                        (
+                            f"{media_label} exceeds the "
+                            f"{max_bytes // (1024 * 1024)} MiB limit."
+                        ),
                     )
                 output.write(chunk)
     finally:
         await upload.close()
 
     if total_bytes == 0:
-        raise ApiError(400, "empty_upload", "The uploaded video is empty.")
+        raise ApiError(
+            400,
+            "empty_upload",
+            f"The uploaded {media_label.lower()} is empty.",
+        )
     return total_bytes
 
 
@@ -238,7 +258,9 @@ def process_job(
 
 
 def create_app(
-    settings: Settings | None = None, embedder: Embedder | None = None
+    settings: Settings | None = None,
+    embedder: Embedder | None = None,
+    transcriber: Transcriber | None = None,
 ) -> FastAPI:
     configure_logging()
     active_settings = settings or Settings.from_environment()
@@ -254,6 +276,10 @@ def create_app(
         store,
         active_embedder,
         active_settings.search_confidence_threshold,
+    )
+    active_transcriber = transcriber or GeminiTranscriber(
+        active_settings.gemini_api_key,
+        active_settings.gemini_transcription_model,
     )
     processing_tasks: set[asyncio.Task[None]] = set()
     app = FastAPI(
@@ -487,6 +513,61 @@ def create_app(
             },
         )
         return response
+
+    @app.post(
+        "/transcriptions",
+        response_model=TranscriptionResponse,
+        responses={
+            400: {"model": ErrorResponse},
+            413: {"model": ErrorResponse},
+            415: {"model": ErrorResponse},
+            422: {"model": ErrorResponse},
+            503: {"model": ErrorResponse},
+        },
+    )
+    async def transcribe_voice_query(
+        audio: Annotated[UploadFile, File()],
+    ) -> TranscriptionResponse:
+        started_at = time.perf_counter()
+        media_type = (audio.content_type or "").lower()
+        provider_media_type = AUDIO_MEDIA_TYPES.get(media_type)
+        if provider_media_type is None:
+            await audio.close()
+            raise ApiError(
+                415,
+                "unsupported_audio_type",
+                "Upload an M4A, MP3, AAC, WAV, OGG, or WebM audio recording.",
+            )
+
+        temporary_path = active_settings.data_dir / f"voice-query-{uuid4()}.upload"
+        upload_bytes = 0
+        try:
+            upload_bytes = await save_bounded_upload(
+                audio,
+                temporary_path,
+                active_settings.max_audio_upload_bytes,
+                "Audio",
+            )
+            try:
+                transcription = await asyncio.to_thread(
+                    active_transcriber.transcribe,
+                    temporary_path,
+                    provider_media_type,
+                )
+            except TranscriptionError as error:
+                raise ApiError(503, error.code, error.message) from error
+        finally:
+            temporary_path.unlink(missing_ok=True)
+
+        logger.info(
+            "voice_transcription_completed",
+            extra={
+                "elapsed_ms": elapsed_milliseconds(started_at),
+                "model": active_transcriber.model_id,
+                "upload_bytes": upload_bytes,
+            },
+        )
+        return TranscriptionResponse(transcription=transcription)
 
     return app
 

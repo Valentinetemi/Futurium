@@ -116,3 +116,7 @@ class SearchResponse(ApiModel):
     searched_job_count: int = Field(ge=0)
     searched_frame_count: int = Field(ge=0)
     unindexed_job_ids: list[str]
+
+
+class TranscriptionResponse(ApiModel):
+    transcription: str = Field(min_length=1, max_length=200)

@@ -26,7 +26,15 @@
         }
       ],
       "expo-video",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Futurium to record audio for room sweeps and short voice searches.",
+          "recordAudioAndroid": true,
+          "enableBackgroundPlayback": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from futurium_api.embeddings import normalize_embedding_rows
+from futurium_api.transcription import TranscriptionError
 
 
 class FakeEmbedder:
@@ -42,6 +43,25 @@ class FakeEmbedder:
 @pytest.fixture
 def fake_embedder() -> FakeEmbedder:
     return FakeEmbedder()
+
+
+class FakeTranscriber:
+    model_id = "fake:voice-transcriber:v1"
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[bytes, str]] = []
+        self.error: TranscriptionError | None = None
+
+    def transcribe(self, audio_path: Path, media_type: str) -> str:
+        self.calls.append((audio_path.read_bytes(), media_type))
+        if self.error is not None:
+            raise self.error
+        return "Where are my glasses?"
+
+
+@pytest.fixture
+def fake_transcriber() -> FakeTranscriber:
+    return FakeTranscriber()
 
 
 def _sharp_frame(kind: str) -> np.ndarray:

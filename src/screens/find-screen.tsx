@@ -1,11 +1,19 @@
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
   Keyboard,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -30,6 +38,10 @@ import type { Sweep } from '@/database/sweep-model';
 import { listSweeps } from '@/database/sweep-repository';
 import { ProcessingApiError } from '@/lib/processing-api-core';
 import { searchMemories } from '@/lib/search-api';
+import {
+  deleteTemporaryVoiceRecording,
+  transcribeVoiceQuery,
+} from '@/lib/transcription-api';
 import type { SearchMatch, SearchResponse } from '@/types/search';
 import { formatMomentTime, safeThumbnailUrl } from '@/utils/frame-thumbnail';
 import { formatRoomName, formatSweepDate } from '@/utils/sweep-formatters';
@@ -37,6 +49,11 @@ import { formatRoomName, formatSweepDate } from '@/utils/sweep-formatters';
 type EnrichedMatch = SearchMatch & {
   sweep: Sweep;
 };
+
+type VoiceState =
+  'idle' | 'recording' | 'transcribing' | 'permission-denied' | 'error';
+
+const MAX_VOICE_DURATION_SECONDS = 12;
 
 function scoreLabel(similarity: number) {
   return `${Math.round(Math.max(0, Math.min(1, similarity)) * 100)}% similarity`;
@@ -97,6 +114,10 @@ export function FindScreen() {
   const database = useSQLiteContext();
   const { width } = useWindowDimensions();
   const isCompact = width < layout.compactBreakpoint;
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder, 200);
+  const voiceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isCompletingVoice = useRef(false);
   const [query, setQuery] = useState('');
   const [readySweeps, setReadySweeps] = useState<Sweep[]>([]);
   const [isLoadingMemories, setIsLoadingMemories] = useState(true);
@@ -104,6 +125,26 @@ export function FindScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [response, setResponse] = useState<SearchResponse | null>(null);
+  const [voiceState, setVoiceState] = useState<VoiceState>('idle');
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+  const [canOpenMicrophoneSettings, setCanOpenMicrophoneSettings] =
+    useState(false);
+
+  const clearVoiceTimeout = useCallback(() => {
+    if (voiceTimeout.current) {
+      clearTimeout(voiceTimeout.current);
+      voiceTimeout.current = null;
+    }
+  }, []);
+
+  useEffect(
+    () => () => {
+      clearVoiceTimeout();
+      void setAudioModeAsync({ allowsRecording: false });
+    },
+    [clearVoiceTimeout],
+  );
 
   const sweepsById = useMemo(
     () => new Map(readySweeps.map((sweep) => [sweep.id, sweep])),
@@ -165,8 +206,117 @@ export function FindScreen() {
     }
   }
 
+  async function restorePlaybackMode() {
+    try {
+      await setAudioModeAsync({ allowsRecording: false });
+    } catch {
+      // The OS may already have released the audio session.
+    }
+  }
+
+  async function finishVoiceRecording() {
+    if (isCompletingVoice.current) return;
+    isCompletingVoice.current = true;
+    clearVoiceTimeout();
+    setVoiceState('transcribing');
+    setVoiceError(null);
+
+    let audioUri: string | null = null;
+    try {
+      await recorder.stop();
+      audioUri = recorder.uri ?? recorder.getStatus().url;
+      if (!audioUri) {
+        throw new ProcessingApiError(
+          'The voice recording was not available. Please record it again.',
+          'local_audio_missing',
+        );
+      }
+      const result = await transcribeVoiceQuery(audioUri);
+      setQuery(result.transcription);
+      setVoiceNotice(
+        'Transcription added. Review or edit it before searching.',
+      );
+      setVoiceState('idle');
+    } catch (error) {
+      setVoiceError(
+        error instanceof Error
+          ? error.message
+          : 'The voice query could not be transcribed. Please try again.',
+      );
+      setVoiceState('error');
+    } finally {
+      if (audioUri) deleteTemporaryVoiceRecording(audioUri);
+      await restorePlaybackMode();
+      isCompletingVoice.current = false;
+    }
+  }
+
+  async function startVoiceRecording() {
+    if (voiceState === 'recording' || voiceState === 'transcribing') return;
+    setVoiceError(null);
+    setVoiceNotice(null);
+    setCanOpenMicrophoneSettings(false);
+
+    try {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        setCanOpenMicrophoneSettings(permission.canAskAgain === false);
+        setVoiceState('permission-denied');
+        return;
+      }
+
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setVoiceState('recording');
+      voiceTimeout.current = setTimeout(() => {
+        void finishVoiceRecording();
+      }, MAX_VOICE_DURATION_SECONDS * 1000);
+    } catch (error) {
+      setVoiceError(
+        error instanceof Error
+          ? error.message
+          : 'Voice recording could not start. Please try again.',
+      );
+      setVoiceState('error');
+      await restorePlaybackMode();
+    }
+  }
+
+  async function cancelVoiceRecording() {
+    if (isCompletingVoice.current) return;
+    isCompletingVoice.current = true;
+    clearVoiceTimeout();
+    let audioUri: string | null = null;
+    try {
+      if (recorder.isRecording) await recorder.stop();
+      audioUri = recorder.uri ?? recorder.getStatus().url;
+      setVoiceState('idle');
+      setVoiceError(null);
+      setVoiceNotice('Voice recording cancelled.');
+    } catch {
+      setVoiceState('idle');
+      setVoiceNotice('Voice recording cancelled.');
+    } finally {
+      if (audioUri) deleteTemporaryVoiceRecording(audioUri);
+      await restorePlaybackMode();
+      isCompletingVoice.current = false;
+    }
+  }
+
   const canSearch =
-    query.trim().length > 0 && readySweeps.length > 0 && !isSearching;
+    query.trim().length > 0 &&
+    readySweeps.length > 0 &&
+    !isSearching &&
+    voiceState !== 'recording' &&
+    voiceState !== 'transcribing';
+  const elapsedVoiceSeconds = Math.min(
+    MAX_VOICE_DURATION_SECONDS,
+    Math.floor(recorderState.durationMillis / 1000),
+  );
 
   return (
     <ScreenContainer>
@@ -198,20 +348,122 @@ export function FindScreen() {
 
           <View style={styles.searchPanel}>
             <Text style={styles.inputLabel}>What are you looking for?</Text>
-            <TextInput
-              accessibilityLabel="Object search"
-              autoCapitalize="sentences"
-              maxLength={200}
-              onChangeText={setQuery}
-              onSubmitEditing={() => {
-                if (canSearch) void submitSearch();
-              }}
-              placeholder="Where are my glasses?"
-              placeholderTextColor={colors.textSecondary}
-              returnKeyType="search"
-              style={styles.input}
-              value={query}
-            />
+            <View style={styles.queryRow}>
+              <TextInput
+                accessibilityLabel="Object search"
+                autoCapitalize="sentences"
+                maxLength={200}
+                onChangeText={setQuery}
+                onSubmitEditing={() => {
+                  if (canSearch) void submitSearch();
+                }}
+                placeholder="Where are my glasses?"
+                placeholderTextColor={colors.textSecondary}
+                returnKeyType="search"
+                style={styles.input}
+                value={query}
+              />
+              <Pressable
+                accessibilityHint="Records a short query for transcription"
+                accessibilityLabel="Record voice query"
+                accessibilityRole="button"
+                disabled={
+                  voiceState === 'recording' || voiceState === 'transcribing'
+                }
+                onPress={() => void startVoiceRecording()}
+                style={({ pressed }) => [
+                  styles.voiceButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.voiceButtonText}>Voice</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.privacyText}>
+              Voice is optional. A short query is uploaded to Gemini for
+              transcription, then temporary audio is deleted. You can edit the
+              text before searching.
+            </Text>
+
+            {voiceState === 'recording' ? (
+              <View accessibilityLiveRegion="polite" style={styles.voicePanel}>
+                <View style={styles.recordingStatus}>
+                  <View style={styles.recordingDot} />
+                  <Text style={styles.recordingText}>
+                    Recording {elapsedVoiceSeconds}s /{' '}
+                    {MAX_VOICE_DURATION_SECONDS}s
+                  </Text>
+                </View>
+                <View style={styles.voiceActions}>
+                  <Pressable
+                    accessibilityLabel="Stop and transcribe voice query"
+                    accessibilityRole="button"
+                    onPress={() => void finishVoiceRecording()}
+                    style={({ pressed }) => [
+                      styles.stopVoiceButton,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.stopVoiceText}>Stop & transcribe</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel="Cancel voice recording"
+                    accessibilityRole="button"
+                    onPress={() => void cancelVoiceRecording()}
+                    style={({ pressed }) => [
+                      styles.cancelVoiceButton,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.cancelVoiceText}>Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
+            {voiceState === 'transcribing' ? (
+              <View accessibilityLiveRegion="polite" style={styles.stateRow}>
+                <ActivityIndicator color={colors.primary} />
+                <Text style={styles.stateText}>Transcribing voice query…</Text>
+              </View>
+            ) : null}
+
+            {voiceState === 'permission-denied' ? (
+              <View accessibilityLiveRegion="polite" style={styles.voicePanel}>
+                <Text style={styles.errorText}>
+                  Microphone access is needed only when you choose voice input.
+                  You can keep typing instead.
+                </Text>
+                {canOpenMicrophoneSettings ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => void Linking.openSettings()}
+                    style={({ pressed }) => pressed && styles.pressed}
+                  >
+                    <Text style={styles.retryText}>Open settings</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+
+            {voiceError ? (
+              <View accessibilityLiveRegion="polite" style={styles.voicePanel}>
+                <Text style={styles.errorText}>{voiceError}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => void startVoiceRecording()}
+                  style={({ pressed }) => pressed && styles.pressed}
+                >
+                  <Text style={styles.retryText}>Record again</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {voiceNotice ? (
+              <Text accessibilityLiveRegion="polite" style={styles.voiceNotice}>
+                {voiceNotice}
+              </Text>
+            ) : null}
             <PrimaryButton
               accessibilityHint="Searches frames from prepared memories"
               disabled={!canSearch}
@@ -334,6 +586,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: typography.size.body,
     lineHeight: typography.lineHeight.body,
+    flex: 1,
     minHeight: 52,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -344,6 +597,12 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.semibold,
     lineHeight: typography.lineHeight.small,
     marginBottom: spacing.xs,
+  },
+  privacyText: {
+    color: colors.textSecondary,
+    fontSize: typography.size.caption,
+    lineHeight: typography.lineHeight.caption,
+    marginTop: spacing.xs,
   },
   notice: {
     backgroundColor: colors.surface,
@@ -375,6 +634,28 @@ const styles = StyleSheet.create({
   },
   primaryResult: {
     padding: spacing.sm,
+  },
+  queryRow: {
+    alignItems: 'stretch',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  recordingDot: {
+    backgroundColor: colors.error,
+    borderRadius: radii.pill,
+    height: 9,
+    width: 9,
+  },
+  recordingStatus: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  recordingText: {
+    color: colors.text,
+    fontSize: typography.size.small,
+    fontWeight: typography.weight.semibold,
+    lineHeight: typography.lineHeight.small,
   },
   resultCard: {
     ...shadows.subtle,
@@ -444,6 +725,19 @@ const styles = StyleSheet.create({
   searchPanel: {
     marginTop: spacing.lg,
   },
+  stopVoiceButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    justifyContent: 'center',
+    minHeight: layout.minTouchTarget,
+    paddingHorizontal: spacing.md,
+  },
+  stopVoiceText: {
+    color: colors.onPrimary,
+    fontSize: typography.size.small,
+    fontWeight: typography.weight.semibold,
+  },
   stateRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -462,11 +756,61 @@ const styles = StyleSheet.create({
     lineHeight: typography.lineHeight.body,
     marginTop: spacing.xs,
   },
+  cancelVoiceButton: {
+    alignItems: 'center',
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: layout.minTouchTarget,
+    paddingHorizontal: spacing.md,
+  },
+  cancelVoiceText: {
+    color: colors.text,
+    fontSize: typography.size.small,
+    fontWeight: typography.weight.semibold,
+  },
   title: {
     color: colors.text,
     fontSize: typography.size.heading,
     fontWeight: typography.weight.semibold,
     lineHeight: typography.lineHeight.heading,
     marginTop: spacing.xs,
+  },
+  voiceActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  voiceButton: {
+    alignItems: 'center',
+    backgroundColor: colors.softBlue,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 52,
+    minWidth: 72,
+    paddingHorizontal: spacing.sm,
+  },
+  voiceButtonText: {
+    color: colors.primary,
+    fontSize: typography.size.small,
+    fontWeight: typography.weight.semibold,
+  },
+  voiceNotice: {
+    color: colors.primary,
+    fontSize: typography.size.small,
+    lineHeight: typography.lineHeight.small,
+    marginTop: spacing.sm,
+  },
+  voicePanel: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    marginTop: spacing.sm,
+    padding: spacing.md,
   },
 });
