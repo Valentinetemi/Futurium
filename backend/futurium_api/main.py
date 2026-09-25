@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.exceptions import HTTPException as StarletteHttpException
 
 from .config import Settings
+from .embeddings import Embedder, EmbeddingError, OpenClipEmbedder
 from .errors import ApiError, ProcessingError
 from .job_store import FRAME_ID_PATTERN, JobStore, normalize_job_id
 from .logging_config import configure_logging
@@ -25,8 +26,11 @@ from .models import (
     JobError,
     ProcessingManifest,
     ProcessingStatus,
+    SearchRequest,
+    SearchResponse,
 )
 from .processing import FrameProcessor
+from .search import SemanticSearch
 
 ALLOWED_MEDIA_TYPES = {
     "video/mp4",
@@ -74,6 +78,7 @@ async def save_bounded_upload(
 
 
 def clear_processed_images(job_dir: Path) -> None:
+    (job_dir / "embeddings.npz").unlink(missing_ok=True)
     for directory_name in ("frames", "thumbnails", "sampled"):
         directory = job_dir / directory_name
         if directory.is_dir():
@@ -122,6 +127,7 @@ def process_job(
     source_path: Path,
     store: JobStore,
     processor: FrameProcessor,
+    embedder: Embedder,
     queued_at: float,
 ) -> None:
     processing_started_at = time.perf_counter()
@@ -144,6 +150,29 @@ def process_job(
             duration, sampled, blur_count, duplicate_count, frames = processor.process(
                 job_id, source_path, store.job_dir(job_id)
             )
+            if frames:
+                frame_paths: list[Path] = []
+                for frame in frames:
+                    frame_path = store.frame_path(job_id, frame.frame_id)
+                    if frame_path is None:
+                        raise ProcessingError(
+                            "retained_frame_missing",
+                            "A retained room frame could not be indexed.",
+                        )
+                    frame_paths.append(frame_path)
+                embeddings = embedder.embed_images(frame_paths)
+                if embeddings.shape[0] != len(frames):
+                    raise EmbeddingError(
+                        "embedding_invalid",
+                        "The image search model returned an invalid frame index.",
+                    )
+                store.save_embedding_index(
+                    job_id,
+                    embedder.model_id,
+                    [frame.frame_id for frame in frames],
+                    embeddings,
+                )
+                manifest.embedding_model = embedder.model_id
             manifest.status = ProcessingStatus.READY
             manifest.duration = duration
             manifest.total_frames_sampled = sampled
@@ -165,7 +194,7 @@ def process_job(
                     "rejected_duplicate_count": duplicate_count,
                 },
             )
-        except ProcessingError as error:
+        except (EmbeddingError, ProcessingError) as error:
             clear_processed_images(store.job_dir(job_id))
             manifest.status = ProcessingStatus.FAILED
             manifest.error = JobError(code=error.code, message=error.message)
@@ -208,12 +237,24 @@ def process_job(
         )
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, embedder: Embedder | None = None
+) -> FastAPI:
     configure_logging()
     active_settings = settings or Settings.from_environment()
     store = JobStore(active_settings.data_dir)
     recover_interrupted_jobs(store)
     processor = FrameProcessor(active_settings)
+    active_embedder = embedder or OpenClipEmbedder(
+        active_settings.embedding_model,
+        active_settings.embedding_pretrained,
+        active_settings.embedding_device,
+    )
+    semantic_search = SemanticSearch(
+        store,
+        active_embedder,
+        active_settings.search_confidence_threshold,
+    )
     processing_tasks: set[asyncio.Task[None]] = set()
     app = FastAPI(
         title="Futurium Processing API",
@@ -241,6 +282,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 source_path,
                 store,
                 processor,
+                active_embedder,
                 queued_at,
             ),
             name=f"process-sweep-{job_id}",
@@ -418,6 +460,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if path is None:
             raise ApiError(404, "thumbnail_not_found", "Thumbnail not found.")
         return FileResponse(path, media_type="image/jpeg")
+
+    @app.post(
+        "/search",
+        response_model=SearchResponse,
+        responses={
+            404: {"model": ErrorResponse},
+            422: {"model": ErrorResponse},
+            503: {"model": ErrorResponse},
+        },
+    )
+    async def search_memories(request: SearchRequest) -> SearchResponse:
+        started_at = time.perf_counter()
+        try:
+            response = await asyncio.to_thread(semantic_search.search, request)
+        except EmbeddingError as error:
+            raise ApiError(503, error.code, error.message) from error
+        logger.info(
+            "semantic_search_completed",
+            extra={
+                "confident_match": response.confident_match,
+                "elapsed_ms": elapsed_milliseconds(started_at),
+                "result_count": len(response.matches),
+                "searched_frame_count": response.searched_frame_count,
+                "searched_job_count": response.searched_job_count,
+            },
+        )
+        return response
 
     return app
 

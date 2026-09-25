@@ -28,8 +28,8 @@ def wait_for_terminal_manifest(
     raise AssertionError("Processing did not reach a terminal state in time")
 
 
-def test_health_reports_processing_dependencies(tmp_path: Path) -> None:
-    client = TestClient(create_app(Settings(data_dir=tmp_path / "jobs")))
+def test_health_reports_processing_dependencies(tmp_path: Path, fake_embedder) -> None:
+    client = TestClient(create_app(Settings(data_dir=tmp_path / "jobs"), fake_embedder))
 
     response = client.get("/health")
 
@@ -42,10 +42,10 @@ def test_health_reports_processing_dependencies(tmp_path: Path) -> None:
 
 
 def test_upload_processes_video_and_serves_manifest_and_thumbnail(
-    tmp_path: Path, generated_video: Path
+    tmp_path: Path, generated_video: Path, fake_embedder
 ) -> None:
     data_dir = tmp_path / "jobs"
-    client = TestClient(create_app(Settings(data_dir=data_dir)))
+    client = TestClient(create_app(Settings(data_dir=data_dir), fake_embedder))
 
     with generated_video.open("rb") as video:
         response = client.post(
@@ -74,9 +74,11 @@ def test_upload_processes_video_and_serves_manifest_and_thumbnail(
     assert thumbnail_response.headers["content-type"] == "image/jpeg"
 
 
-def test_failed_processing_deletes_uploaded_source(tmp_path: Path) -> None:
+def test_failed_processing_deletes_uploaded_source(
+    tmp_path: Path, fake_embedder
+) -> None:
     data_dir = tmp_path / "jobs"
-    client = TestClient(create_app(Settings(data_dir=data_dir)))
+    client = TestClient(create_app(Settings(data_dir=data_dir), fake_embedder))
 
     response = client.post(
         "/sweeps",
@@ -93,7 +95,7 @@ def test_failed_processing_deletes_uploaded_source(tmp_path: Path) -> None:
 
 
 def test_upload_returns_immediately_and_polling_works_during_processing(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch, fake_embedder
 ) -> None:
     processing_started = threading.Event()
     release_processing = threading.Event()
@@ -114,7 +116,9 @@ def test_upload_returns_immediately_and_polling_works_during_processing(
     release_fallback.start()
 
     try:
-        with TestClient(create_app(Settings(data_dir=tmp_path / "jobs"))) as client:
+        with TestClient(
+            create_app(Settings(data_dir=tmp_path / "jobs"), fake_embedder)
+        ) as client:
             request_started = time.monotonic()
             response = client.post(
                 "/sweeps",
@@ -144,9 +148,11 @@ def test_upload_returns_immediately_and_polling_works_during_processing(
         release_fallback.cancel()
 
 
-def test_rejects_unsupported_media_before_creating_job(tmp_path: Path) -> None:
+def test_rejects_unsupported_media_before_creating_job(
+    tmp_path: Path, fake_embedder
+) -> None:
     data_dir = tmp_path / "jobs"
-    client = TestClient(create_app(Settings(data_dir=data_dir)))
+    client = TestClient(create_app(Settings(data_dir=data_dir), fake_embedder))
 
     response = client.post(
         "/sweeps",
@@ -159,9 +165,13 @@ def test_rejects_unsupported_media_before_creating_job(tmp_path: Path) -> None:
     assert list(data_dir.iterdir()) == []
 
 
-def test_enforces_upload_size_limit_and_cleans_partial_job(tmp_path: Path) -> None:
+def test_enforces_upload_size_limit_and_cleans_partial_job(
+    tmp_path: Path, fake_embedder
+) -> None:
     data_dir = tmp_path / "jobs"
-    client = TestClient(create_app(Settings(data_dir=data_dir, max_upload_bytes=16)))
+    client = TestClient(
+        create_app(Settings(data_dir=data_dir, max_upload_bytes=16), fake_embedder)
+    )
 
     response = client.post(
         "/sweeps",
@@ -174,8 +184,10 @@ def test_enforces_upload_size_limit_and_cleans_partial_job(tmp_path: Path) -> No
     assert list(data_dir.iterdir()) == []
 
 
-def test_invalid_identifiers_return_structured_not_found(tmp_path: Path) -> None:
-    client = TestClient(create_app(Settings(data_dir=tmp_path / "jobs")))
+def test_invalid_identifiers_return_structured_not_found(
+    tmp_path: Path, fake_embedder
+) -> None:
+    client = TestClient(create_app(Settings(data_dir=tmp_path / "jobs"), fake_embedder))
 
     response = client.get("/sweeps/not-a-job-id")
 
@@ -192,7 +204,9 @@ def test_invalid_identifiers_return_structured_not_found(tmp_path: Path) -> None
     assert missing_route.json()["error"]["code"] == "not_found"
 
 
-def test_startup_recovers_interrupted_job_and_deletes_source(tmp_path: Path) -> None:
+def test_startup_recovers_interrupted_job_and_deletes_source(
+    tmp_path: Path, fake_embedder
+) -> None:
     data_dir = tmp_path / "jobs"
     store = JobStore(data_dir)
     manifest = ProcessingManifest(
@@ -205,7 +219,7 @@ def test_startup_recovers_interrupted_job_and_deletes_source(tmp_path: Path) -> 
     source_path.write_bytes(b"private room video")
     (job_dir / "frames" / "partial.jpg").write_bytes(b"partial")
 
-    client = TestClient(create_app(Settings(data_dir=data_dir)))
+    client = TestClient(create_app(Settings(data_dir=data_dir), fake_embedder))
     response = client.get(f"/sweeps/{manifest.job_id}")
 
     assert response.status_code == 200
@@ -214,3 +228,54 @@ def test_startup_recovers_interrupted_job_and_deletes_source(tmp_path: Path) -> 
     assert recovered["error"]["code"] == "processing_interrupted"
     assert not source_path.exists()
     assert list((job_dir / "frames").iterdir()) == []
+
+
+def test_generated_object_video_can_be_searched_by_text(
+    tmp_path: Path,
+    generated_object_video: Path,
+    fake_embedder,
+) -> None:
+    client = TestClient(
+        create_app(
+            Settings(data_dir=tmp_path / "jobs", blur_threshold=10), fake_embedder
+        )
+    )
+
+    with generated_object_video.open("rb") as video:
+        upload = client.post(
+            "/sweeps",
+            data={"sweep_id": "73"},
+            files={"video": ("room.mp4", video, "video/mp4")},
+        )
+
+    assert upload.status_code == 202
+    job_id = upload.json()["jobId"]
+    manifest = wait_for_terminal_manifest(client, job_id)
+    assert manifest["status"] == "ready"
+    assert manifest["embeddingModel"] == fake_embedder.model_id
+
+    response = client.post(
+        "/search",
+        json={"query": "Where is my blue mug?", "jobIds": [job_id]},
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["confidentMatch"] is True
+    assert result["matches"][0]["sweepId"] == 73
+    assert result["matches"][0]["frameId"] == "frame_000002"
+
+
+def test_search_rejects_blank_query(tmp_path: Path, fake_embedder) -> None:
+    client = TestClient(create_app(Settings(data_dir=tmp_path / "jobs"), fake_embedder))
+
+    response = client.post(
+        "/search",
+        json={
+            "query": "   ",
+            "jobIds": ["11111111-1111-4111-8111-111111111111"],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"

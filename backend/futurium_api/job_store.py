@@ -4,12 +4,23 @@ import os
 import re
 import shutil
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from uuid import UUID
+
+import numpy as np
 
 from .models import ProcessingManifest
 
 FRAME_ID_PATTERN = re.compile(r"^frame_[0-9]{6}$")
+EMBEDDING_INDEX_FILENAME = "embeddings.npz"
+
+
+@dataclass(frozen=True, slots=True)
+class FrameEmbeddingIndex:
+    model_id: str
+    frame_ids: tuple[str, ...]
+    embeddings: np.ndarray
 
 
 def normalize_job_id(value: str) -> str:
@@ -77,6 +88,76 @@ class JobStore:
         if path.parent != directory or not path.is_file():
             return None
         return path
+
+    def frame_path(self, job_id: str, frame_id: str) -> Path | None:
+        if not FRAME_ID_PATTERN.fullmatch(frame_id):
+            return None
+
+        directory = (self.job_dir(job_id) / "frames").resolve()
+        path = (directory / f"{frame_id}.jpg").resolve()
+        if path.parent != directory or not path.is_file():
+            return None
+        return path
+
+    def save_embedding_index(
+        self,
+        job_id: str,
+        model_id: str,
+        frame_ids: list[str],
+        embeddings: np.ndarray,
+    ) -> None:
+        normalized = normalize_job_id(job_id)
+        matrix = np.asarray(embeddings, dtype=np.float32)
+        if not model_id or not frame_ids:
+            raise ValueError("Embedding indexes require a model and at least one frame")
+        if len(set(frame_ids)) != len(frame_ids) or any(
+            not FRAME_ID_PATTERN.fullmatch(frame_id) for frame_id in frame_ids
+        ):
+            raise ValueError("Embedding index frame identifiers are invalid")
+        if matrix.ndim != 2 or matrix.shape[0] != len(frame_ids):
+            raise ValueError("Embedding index shape does not match its frames")
+        if not np.all(np.isfinite(matrix)):
+            raise ValueError("Embedding index contains non-finite values")
+        if not np.allclose(np.linalg.norm(matrix, axis=1), 1.0, atol=1e-4):
+            raise ValueError("Embedding index rows must be normalized")
+
+        destination = self.job_dir(normalized) / EMBEDDING_INDEX_FILENAME
+        temporary = self.job_dir(normalized) / "embeddings.tmp"
+        with self._lock, temporary.open("wb") as output:
+            np.savez_compressed(
+                output,
+                embeddings=matrix,
+                frame_ids=np.asarray(frame_ids, dtype=np.str_),
+                model_id=np.asarray(model_id, dtype=np.str_),
+                schema_version=np.asarray(1, dtype=np.int64),
+            )
+            output.flush()
+            os.fsync(output.fileno())
+            os.replace(temporary, destination)
+
+    def get_embedding_index(self, job_id: str) -> FrameEmbeddingIndex | None:
+        path = self.job_dir(job_id) / EMBEDDING_INDEX_FILENAME
+        with self._lock:
+            if not path.is_file():
+                return None
+            with np.load(path, allow_pickle=False) as payload:
+                if int(payload["schema_version"].item()) != 1:
+                    raise ValueError("Unsupported embedding index version")
+                model_id = str(payload["model_id"].item())
+                frame_ids = tuple(str(value) for value in payload["frame_ids"].tolist())
+                embeddings = np.asarray(payload["embeddings"], dtype=np.float32)
+
+        if embeddings.ndim != 2 or embeddings.shape[0] != len(frame_ids):
+            raise ValueError("Stored embedding index is invalid")
+        if any(not FRAME_ID_PATTERN.fullmatch(frame_id) for frame_id in frame_ids):
+            raise ValueError("Stored embedding frame identifier is invalid")
+        if not np.all(np.isfinite(embeddings)):
+            raise ValueError("Stored embedding index is invalid")
+        return FrameEmbeddingIndex(
+            model_id=model_id,
+            frame_ids=frame_ids,
+            embeddings=embeddings,
+        )
 
     def list_job_ids(self) -> list[str]:
         job_ids: list[str] = []

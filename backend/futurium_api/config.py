@@ -19,6 +19,13 @@ def _positive_float(name: str, default: float) -> float:
     return value
 
 
+def _similarity_threshold(name: str, default: float) -> float:
+    value = float(os.getenv(name, str(default)))
+    if value < -1 or value > 1:
+        raise ValueError(f"{name} must be between -1 and 1")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     data_dir: Path
@@ -28,6 +35,10 @@ class Settings:
     duplicate_hash_distance: int = 5
     thumbnail_width: int = 320
     process_timeout_seconds: int = 180
+    embedding_model: str = "ViT-B-32"
+    embedding_pretrained: str = "laion2b_s34b_b79k"
+    embedding_device: str = "auto"
+    search_confidence_threshold: float = 0.23
 
     @classmethod
     def from_environment(cls) -> Settings:
@@ -48,5 +59,13 @@ class Settings:
             thumbnail_width=_positive_int("FUTURIUM_THUMBNAIL_WIDTH", 320),
             process_timeout_seconds=_positive_int(
                 "FUTURIUM_PROCESS_TIMEOUT_SECONDS", 180
+            ),
+            embedding_model=os.getenv("FUTURIUM_EMBEDDING_MODEL", "ViT-B-32"),
+            embedding_pretrained=os.getenv(
+                "FUTURIUM_EMBEDDING_PRETRAINED", "laion2b_s34b_b79k"
+            ),
+            embedding_device=os.getenv("FUTURIUM_EMBEDDING_DEVICE", "auto"),
+            search_confidence_threshold=_similarity_threshold(
+                "FUTURIUM_SEARCH_CONFIDENCE_THRESHOLD", 0.23
             ),
         )

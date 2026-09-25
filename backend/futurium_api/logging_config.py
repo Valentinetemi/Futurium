@@ -20,6 +20,10 @@ class JsonFormatter(logging.Formatter):
         "status_code",
         "worker_thread",
         "error_type",
+        "confident_match",
+        "result_count",
+        "searched_frame_count",
+        "searched_job_count",
     )
 
     def format(self, record: logging.LogRecord) -> str:
