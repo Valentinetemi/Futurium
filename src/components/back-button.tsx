@@ -1,6 +1,7 @@
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
+import { Text } from '@/components/app-text';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 
 type BackButtonProps = {
@@ -20,24 +21,36 @@ export function BackButton({
     <Pressable
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
-      hitSlop={8}
+      hitSlop={{ bottom: 8, left: 8, right: 16, top: 8 }}
       onPress={onPress}
-      style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+      style={({ pressed }) => [
+        styles.button,
+        dark && styles.buttonDark,
+        pressed && styles.buttonPressed,
+      ]}
     >
-      <View style={[styles.icon, dark && styles.iconDark]}>
-        <Text style={[styles.arrow, dark && styles.textDark]}>‹</Text>
-      </View>
-      <Text style={[styles.label, dark && styles.textDark]}>{label}</Text>
+      <Text
+        maxFontSizeMultiplier={typography.maxScale.control}
+        style={[styles.arrow, dark && styles.textDark]}
+      >
+        ‹
+      </Text>
+      <Text
+        maxFontSizeMultiplier={typography.maxScale.control}
+        style={[styles.label, dark && styles.textDark]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   arrow: {
-    color: colors.ink,
-    fontSize: 27,
-    lineHeight: 29,
-    marginLeft: -1,
+    color: colors.primary,
+    fontSize: 24,
+    lineHeight: 26,
+    marginRight: spacing.xxs + 2,
     marginTop: -2,
   },
   button: {
@@ -45,32 +58,22 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     flexDirection: 'row',
     minHeight: layout.minTouchTarget,
-    paddingRight: spacing.md,
+    paddingRight: spacing.sm,
+  },
+  buttonDark: {
+    backgroundColor: colors.cameraPlate,
+    borderRadius: radii.md,
+    paddingLeft: spacing.sm,
   },
   buttonPressed: {
-    opacity: 0.58,
-  },
-  icon: {
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    height: 38,
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-    width: 38,
-  },
-  iconDark: {
-    backgroundColor: colors.cameraSoft,
-    borderColor: 'rgba(255,255,255,0.18)',
+    opacity: 0.6,
   },
   label: {
-    color: colors.inkSoft,
-    fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.semibold,
+    color: colors.primary,
+    fontSize: typography.size.small,
+    fontWeight: typography.weight.medium,
   },
   textDark: {
-    color: colors.white,
+    color: colors.cameraText,
   },
 });

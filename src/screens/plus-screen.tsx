@@ -4,112 +4,77 @@ import { useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
 
+import { Text } from '@/components/app-text';
 import { BackButton } from '@/components/back-button';
 import { PrimaryButton } from '@/components/primary-button';
 import { ScreenContainer } from '@/components/screen-container';
-import {
-  colors,
-  layout,
-  radii,
-  shadows,
-  spacing,
-  typography,
-} from '@/constants/theme';
+import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 import { revenueCatMode, type RevenueCatMode } from '@/lib/revenuecat';
 
-type PlanCardProps = {
+type PlanProps = {
   benefits: string[];
-  featured?: boolean;
-  label: string;
+  highlighted?: boolean;
   name: string;
+  note: string;
 };
 
 const modeCopy: Record<
   RevenueCatMode,
-  { detail: string; label: string; tone: 'attention' | 'ready' }
+  { detail: string; title: string; tone: 'attention' | 'ready' }
 > = {
   error: {
     detail:
-      'RevenueCat could not initialize. Check the public SDK key and restart Metro.',
-    label: 'SETUP ERROR',
+      'RevenueCat could not start. Check the public SDK key, then restart Metro.',
+    title: 'Plus preview is not set up',
     tone: 'attention',
   },
   'invalid-preview-key': {
     detail:
-      'Expo Go needs a RevenueCat Test Store key beginning with test_ or rcb_.',
-    label: 'PREVIEW KEY NEEDED',
+      'Expo Go needs a RevenueCat Test Store key that starts with test_ or rcb_.',
+    title: 'Plus preview is not set up',
     tone: 'attention',
   },
   native: {
     detail:
-      'Running with the native SDK. Store products still need dashboard configuration.',
-    label: 'DEVELOPMENT BUILD',
+      'The purchase SDK is running. Store products still need to be set up before anything can be bought.',
+    title: 'Development build',
     tone: 'ready',
   },
   preview: {
     detail:
-      'RevenueCat Preview API Mode is active. Expo Go will not make a real store purchase.',
-    label: 'EXPO GO · PREVIEW MODE',
+      'You are using Expo Go, so this is a preview. No purchase can be made and nothing will be charged.',
+    title: 'Preview only',
     tone: 'ready',
   },
   unconfigured: {
     detail:
-      'Add the public RevenueCat Test Store key to .env, then restart Metro.',
-    label: 'KEY NOT CONFIGURED',
+      'Add a RevenueCat Test Store key to .env, then restart Metro to try the preview.',
+    title: 'Plus preview is not set up',
     tone: 'attention',
   },
 };
 
-function PlanCard({ benefits, featured = false, label, name }: PlanCardProps) {
+function Plan({ benefits, highlighted = false, name, note }: PlanProps) {
   return (
     <View
-      accessibilityLabel={`${name} plan. ${benefits.join('. ')}`}
-      style={[styles.planCard, featured && styles.planCardFeatured]}
+      accessibilityLabel={`${name}. ${note}. ${benefits.join('. ')}.`}
+      accessible
+      style={[styles.plan, highlighted && styles.planHighlighted]}
     >
       <View style={styles.planHeader}>
-        <View>
-          <Text
-            style={[styles.planLabel, featured && styles.planLabelFeatured]}
-          >
-            {label}
-          </Text>
-          <Text style={[styles.planName, featured && styles.planNameFeatured]}>
-            {name}
-          </Text>
+        <Text style={styles.planName}>{name}</Text>
+        <Text style={styles.planNote}>{note}</Text>
+      </View>
+      {benefits.map((benefit) => (
+        <View key={benefit} style={styles.benefitRow}>
+          <Text style={styles.benefitMark}>✓</Text>
+          <Text style={styles.benefitText}>{benefit}</Text>
         </View>
-        {featured ? (
-          <View style={styles.recommendedBadge}>
-            <Text style={styles.recommendedText}>MORE MEMORY</Text>
-          </View>
-        ) : null}
-      </View>
-
-      <View style={styles.benefitList}>
-        {benefits.map((benefit) => (
-          <View key={benefit} style={styles.benefitRow}>
-            <View style={[styles.check, featured && styles.checkFeatured]}>
-              <Text
-                style={[styles.checkText, featured && styles.checkTextFeatured]}
-              >
-                ✓
-              </Text>
-            </View>
-            <Text
-              style={[
-                styles.benefitText,
-                featured && styles.benefitTextFeatured,
-              ]}
-            >
-              {benefit}
-            </Text>
-          </View>
-        ))}
-      </View>
+      ))}
     </View>
   );
 }
@@ -124,13 +89,13 @@ export function PlusScreen() {
   function previewPlus() {
     if (revenueCatMode === 'preview') {
       setPreviewMessage(
-        'Preview complete. No real purchase or charge was made in Expo Go.',
+        'Preview finished. No purchase was made and nothing was charged.',
       );
       return;
     }
 
     setPreviewMessage(
-      'The Plus interface is ready. Configure Preview API Mode to simulate RevenueCat behavior in Expo Go.',
+      'This shows how Plus will look. Set up Preview API Mode to try it in Expo Go.',
     );
   }
 
@@ -155,50 +120,40 @@ export function PlusScreen() {
           />
 
           <View style={styles.header}>
-            <Text style={styles.eyebrow}>FUTURIUM PLUS</Text>
-            <Text accessibilityRole="header" style={styles.title}>
-              Keep more of what matters.
+            <Text accessibilityRole="header" heading style={styles.title}>
+              Futurium Plus
             </Text>
             <Text style={styles.subtitle}>
-              Start with one space, then expand your visual memory when you need
-              it.
+              Room for every space you want to remember.
             </Text>
           </View>
 
-          <PlanCard
-            benefits={['One saved space', 'Seven days of history']}
-            label="INCLUDED"
+          <Plan
+            benefits={['One saved room', 'Seven days of memories']}
             name="Free"
+            note="What you have now"
           />
-          <PlanCard
-            benefits={['Unlimited saved spaces', 'Extended history']}
-            featured
-            label="UPGRADE"
+          <Plan
+            benefits={['Every room you want to save', 'Memories kept longer']}
+            highlighted
             name="Plus"
+            note="Coming later"
           />
 
           <View
             accessibilityLiveRegion="polite"
             style={[
-              styles.modeCard,
-              currentModeCopy.tone === 'ready' && styles.modeCardReady,
+              styles.notice,
+              currentModeCopy.tone === 'attention' && styles.noticeAttention,
             ]}
           >
-            <View
-              style={[
-                styles.modeDot,
-                currentModeCopy.tone === 'ready' && styles.modeDotReady,
-              ]}
-            />
-            <View style={styles.modeCopy}>
-              <Text style={styles.modeLabel}>{currentModeCopy.label}</Text>
-              <Text style={styles.modeDetail}>{currentModeCopy.detail}</Text>
-            </View>
+            <Text style={styles.noticeTitle}>{currentModeCopy.title}</Text>
+            <Text style={styles.noticeBody}>{currentModeCopy.detail}</Text>
           </View>
 
           <PrimaryButton
-            accessibilityHint="Demonstrate the Plus selection without making a real purchase"
-            label="Preview Plus"
+            accessibilityHint="Shows the Plus preview. No purchase is made."
+            label="Try the Plus preview"
             onPress={previewPlus}
           />
 
@@ -209,8 +164,8 @@ export function PlusScreen() {
           ) : null}
 
           <Text style={styles.disclaimer}>
-            Preview only. Real subscriptions require configured App Store or
-            Play Store products and a development or production build.
+            Real subscriptions need App Store or Google Play products and a
+            development or store build of the app.
           </Text>
         </View>
       </ScrollView>
@@ -219,42 +174,22 @@ export function PlusScreen() {
 }
 
 const styles = StyleSheet.create({
-  benefitList: {
-    marginTop: spacing.lg,
+  benefitMark: {
+    color: colors.primary,
+    fontSize: typography.size.body,
+    fontWeight: typography.weight.bold,
+    lineHeight: typography.lineHeight.body,
+    width: 24,
   },
   benefitRow: {
-    alignItems: 'center',
     flexDirection: 'row',
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
   },
   benefitText: {
-    color: colors.inkSoft,
+    color: colors.text,
     flex: 1,
     fontSize: typography.size.body,
     lineHeight: typography.lineHeight.body,
-  },
-  benefitTextFeatured: {
-    color: colors.sageSoft,
-  },
-  check: {
-    alignItems: 'center',
-    backgroundColor: colors.sageSoft,
-    borderRadius: radii.pill,
-    height: 24,
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-    width: 24,
-  },
-  checkFeatured: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
-  },
-  checkText: {
-    color: colors.sageDark,
-    fontSize: 12,
-    fontWeight: typography.weight.bold,
-  },
-  checkTextFeatured: {
-    color: colors.white,
   },
   contentWidth: {
     alignSelf: 'center',
@@ -262,138 +197,91 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   disclaimer: {
-    color: colors.muted,
+    color: colors.textSecondary,
     fontSize: typography.size.caption,
     lineHeight: typography.lineHeight.caption,
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.sm,
-    textAlign: 'center',
-  },
-  eyebrow: {
-    color: colors.sage,
-    fontSize: typography.size.caption,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.5,
-    lineHeight: typography.lineHeight.caption,
+    marginTop: spacing.lg,
   },
   header: {
     marginBottom: spacing.lg,
-    marginTop: spacing.xl,
+    marginTop: spacing.xs,
   },
-  modeCard: {
-    alignItems: 'flex-start',
-    backgroundColor: colors.sand,
-    borderRadius: radii.md,
-    flexDirection: 'row',
-    marginBottom: spacing.md,
-    marginTop: spacing.sm,
-    padding: spacing.md,
+  notice: {
+    borderLeftColor: colors.secondaryBlue,
+    borderLeftWidth: 2,
+    marginBottom: spacing.lg,
+    marginTop: spacing.lg,
+    paddingLeft: spacing.md,
+    paddingVertical: spacing.xxs,
   },
-  modeCardReady: {
-    backgroundColor: colors.sageSoft,
+  noticeAttention: {
+    borderLeftColor: colors.accent,
   },
-  modeCopy: {
-    flex: 1,
-  },
-  modeDetail: {
-    color: colors.inkSoft,
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
+  noticeBody: {
+    color: colors.textSecondary,
+    fontSize: typography.size.small,
+    lineHeight: typography.lineHeight.small,
     marginTop: spacing.xxs,
   },
-  modeDot: {
-    backgroundColor: '#B17A45',
-    borderRadius: radii.pill,
-    height: 8,
-    marginRight: spacing.sm,
-    marginTop: 5,
-    width: 8,
+  noticeTitle: {
+    color: colors.text,
+    fontSize: typography.size.body,
+    fontWeight: typography.weight.semibold,
+    lineHeight: typography.lineHeight.body,
   },
-  modeDotReady: {
-    backgroundColor: colors.sage,
-  },
-  modeLabel: {
-    color: colors.ink,
-    fontSize: 10,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.1,
-    lineHeight: 15,
-  },
-  planCard: {
-    ...shadows.card,
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    marginBottom: spacing.md,
-    padding: spacing.lg,
-  },
-  planCardFeatured: {
-    backgroundColor: colors.sageDark,
-    borderColor: colors.sageDark,
+  plan: {
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingBottom: spacing.md,
+    paddingTop: spacing.md,
   },
   planHeader: {
-    alignItems: 'flex-start',
+    alignItems: 'baseline',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
-  planLabel: {
-    color: colors.sage,
-    fontSize: 10,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.2,
-  },
-  planLabelFeatured: {
-    color: colors.mint,
+  planHighlighted: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.md,
   },
   planName: {
-    color: colors.ink,
-    fontSize: 27,
+    color: colors.text,
+    fontSize: typography.size.lead,
     fontWeight: typography.weight.semibold,
-    letterSpacing: -0.7,
-    lineHeight: 34,
-    marginTop: spacing.xxs,
+    lineHeight: typography.lineHeight.lead,
+    marginRight: spacing.sm,
   },
-  planNameFeatured: {
-    color: colors.white,
+  planNote: {
+    color: colors.textSecondary,
+    fontSize: typography.size.small,
   },
   previewNote: {
-    color: colors.sageDark,
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
+    color: colors.primary,
+    fontSize: typography.size.body,
+    fontWeight: typography.weight.medium,
+    lineHeight: typography.lineHeight.body,
     marginTop: spacing.md,
-    textAlign: 'center',
-  },
-  recommendedBadge: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: radii.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  recommendedText: {
-    color: colors.mint,
-    fontSize: 9,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1,
   },
   scrollContent: {
     flexGrow: 1,
     paddingBottom: spacing.xl,
-    paddingTop: spacing.xs,
+    paddingTop: spacing.xxs,
   },
   subtitle: {
-    color: colors.inkSoft,
-    fontSize: typography.size.bodyLarge,
-    lineHeight: typography.lineHeight.bodyLarge,
-    marginTop: spacing.sm,
-    maxWidth: 540,
+    color: colors.textSecondary,
+    fontSize: typography.size.body,
+    lineHeight: typography.lineHeight.body,
+    marginTop: spacing.xs,
+    maxWidth: 520,
   },
   title: {
-    color: colors.ink,
+    color: colors.text,
     fontSize: typography.size.heading,
     fontWeight: typography.weight.semibold,
-    letterSpacing: -1,
     lineHeight: typography.lineHeight.heading,
-    marginTop: spacing.sm,
   },
 });

@@ -26,7 +26,7 @@ export function ScreenContainer({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.canvas,
+    backgroundColor: colors.background,
     flex: 1,
   },
   containerDark: {

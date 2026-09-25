@@ -3,14 +3,20 @@ import { StatusBar } from 'expo-status-bar';
 import {
   ScrollView,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
 
+import { Text } from '@/components/app-text';
 import { BackButton } from '@/components/back-button';
 import { ScreenContainer } from '@/components/screen-container';
-import { colors, layout, radii, spacing, typography } from '@/constants/theme';
+import { colors, layout, spacing, typography } from '@/constants/theme';
+
+const STEPS = [
+  'Record a room.',
+  'Prepare the memory.',
+  'Ask for an object, and see where it was last seen.',
+] as const;
 
 export function FindScreen() {
   const router = useRouter();
@@ -36,41 +42,36 @@ export function FindScreen() {
             onPress={() => router.back()}
           />
 
-          <View style={styles.header}>
-            <Text style={styles.eyebrow}>VISUAL SEARCH</Text>
-            <Text accessibilityRole="header" style={styles.title}>
-              Find something
-            </Text>
-            <Text style={styles.subtitle}>
-              Ask where an object was last seen across your recorded spaces.
-            </Text>
-          </View>
+          <Text accessibilityRole="header" heading style={styles.title}>
+            Find something
+          </Text>
+          <Text style={styles.subtitle}>
+            Search is not available yet. This is how it will look.
+          </Text>
 
           <View
-            accessibilityLabel="Search is not available yet"
-            style={styles.searchField}
+            accessibilityLabel="Example, not a real result. Where are my reading glasses? Last seen in the living room, on the side table."
+            accessible
+            style={styles.example}
           >
-            <View style={styles.searchLens} />
-            <Text style={styles.searchPlaceholder}>
-              What are you looking for?
+            <Text style={styles.exampleLabel}>Example</Text>
+            <Text style={styles.exampleQuestion}>
+              Where are my reading glasses?
+            </Text>
+            <Text style={styles.exampleAnswer}>
+              Last seen in the living room, on the side table.
             </Text>
           </View>
 
-          <View style={styles.placeholder}>
-            <View style={styles.placeholderMark}>
-              <View style={styles.placeholderDot} />
+          <Text accessibilityRole="header" style={styles.stepsTitle}>
+            How it will work
+          </Text>
+          {STEPS.map((step, index) => (
+            <View key={step} style={styles.step}>
+              <Text style={styles.stepNumber}>{index + 1}</Text>
+              <Text style={styles.stepText}>{step}</Text>
             </View>
-            <Text style={styles.placeholderTitle}>Search is coming next</Text>
-            <Text style={styles.placeholderCopy}>
-              The future retrieval service will inspect saved sweep frames and
-              return the most relevant view and location.
-            </Text>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                PLACEHOLDER · NO AI CONNECTED
-              </Text>
-            </View>
-          </View>
+          ))}
         </View>
       </ScrollView>
     </ScreenContainer>
@@ -78,113 +79,76 @@ export function FindScreen() {
 }
 
 const styles = StyleSheet.create({
-  badge: {
-    backgroundColor: colors.canvasMuted,
-    borderRadius: radii.pill,
-    marginTop: spacing.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  badgeText: {
-    color: colors.muted,
-    fontSize: 9,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.1,
-  },
   contentWidth: {
     alignSelf: 'center',
     maxWidth: layout.maxContentWidth,
     width: '100%',
   },
-  eyebrow: {
-    color: colors.sage,
-    fontSize: typography.size.caption,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.5,
-  },
-  header: {
+  example: {
+    borderLeftColor: colors.primary,
+    borderLeftWidth: 2,
     marginBottom: spacing.xl,
-    marginTop: spacing.xl,
+    marginTop: spacing.lg,
+    paddingLeft: spacing.md,
+    paddingVertical: spacing.xxs,
   },
-  placeholder: {
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xxl,
+  exampleAnswer: {
+    color: colors.text,
+    fontSize: typography.size.body,
+    lineHeight: typography.lineHeight.body,
+    marginTop: spacing.xxs,
   },
-  placeholderCopy: {
-    color: colors.muted,
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
-    marginTop: spacing.xs,
-    maxWidth: 420,
-    textAlign: 'center',
+  exampleLabel: {
+    color: colors.textSecondary,
+    fontSize: typography.size.caption,
+    lineHeight: typography.lineHeight.caption,
   },
-  placeholderDot: {
-    backgroundColor: colors.sage,
-    borderRadius: radii.pill,
-    height: 12,
-    width: 12,
-  },
-  placeholderMark: {
-    alignItems: 'center',
-    backgroundColor: colors.sageSoft,
-    borderRadius: radii.pill,
-    height: 64,
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-    width: 64,
-  },
-  placeholderTitle: {
-    color: colors.ink,
-    fontSize: typography.size.bodyLarge,
+  exampleQuestion: {
+    color: colors.primary,
+    fontSize: typography.size.lead,
     fontWeight: typography.weight.semibold,
-    lineHeight: typography.lineHeight.bodyLarge,
+    lineHeight: typography.lineHeight.lead,
+    marginTop: spacing.xxs,
   },
   scrollContent: {
     flexGrow: 1,
     paddingBottom: spacing.xl,
-    paddingTop: spacing.xs,
+    paddingTop: spacing.xxs,
   },
-  searchField: {
-    alignItems: 'center',
-    backgroundColor: colors.canvasMuted,
-    borderColor: colors.line,
-    borderRadius: radii.md,
-    borderWidth: 1,
+  step: {
     flexDirection: 'row',
-    minHeight: 58,
-    paddingHorizontal: spacing.md,
+    marginTop: spacing.xs,
   },
-  searchLens: {
-    borderColor: colors.muted,
-    borderRadius: radii.pill,
-    borderWidth: 1.5,
-    height: 17,
-    marginRight: spacing.sm,
-    width: 17,
+  stepNumber: {
+    color: colors.textSecondary,
+    fontSize: typography.size.small,
+    fontVariant: ['tabular-nums'],
+    lineHeight: typography.lineHeight.small,
+    width: 24,
   },
-  searchPlaceholder: {
-    color: colors.faint,
-    fontSize: typography.size.body,
+  stepText: {
+    color: colors.textSecondary,
+    flex: 1,
+    fontSize: typography.size.small,
+    lineHeight: typography.lineHeight.small,
+  },
+  stepsTitle: {
+    color: colors.text,
+    fontSize: typography.size.small,
+    fontWeight: typography.weight.semibold,
+    lineHeight: typography.lineHeight.small,
   },
   subtitle: {
-    color: colors.inkSoft,
-    fontSize: typography.size.bodyLarge,
-    lineHeight: typography.lineHeight.bodyLarge,
-    marginTop: spacing.sm,
-    maxWidth: 520,
+    color: colors.textSecondary,
+    fontSize: typography.size.body,
+    lineHeight: typography.lineHeight.body,
+    marginTop: spacing.xs,
   },
   title: {
-    color: colors.ink,
+    color: colors.text,
     fontSize: typography.size.heading,
     fontWeight: typography.weight.semibold,
-    letterSpacing: -1,
     lineHeight: typography.lineHeight.heading,
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
   },
 });

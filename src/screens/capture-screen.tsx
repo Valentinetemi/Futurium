@@ -17,17 +17,17 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
 
+import { Text, TextInput } from '@/components/app-text';
 import { BackButton } from '@/components/back-button';
 import { PrimaryButton } from '@/components/primary-button';
 import { ScreenContainer } from '@/components/screen-container';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 import { saveSweepWithVideo } from '@/services/sweep-storage';
+import { formatSweepDuration } from '@/utils/sweep-formatters';
 
 const MAX_RECORDING_SECONDS = 30;
 const ROOM_SUGGESTIONS = [
@@ -52,43 +52,42 @@ function SweepPreview({ isSaving, onDiscard, onSave, uri }: SweepPreviewProps) {
 
   return (
     <View style={styles.previewScreen}>
-      <VideoView
-        accessibilityLabel="Preview of the completed room sweep"
-        contentFit="cover"
-        nativeControls
-        player={player}
-        style={styles.videoPreview}
-        surfaceType="textureView"
-      />
-
-      <View style={styles.previewShade} pointerEvents="none" />
-
       <View style={styles.previewHeader}>
-        <Text style={styles.cameraEyebrow}>REVIEW SWEEP</Text>
-        <Text accessibilityRole="header" style={styles.previewTitle}>
-          Keep this room sweep?
+        <Text accessibilityRole="header" heading style={styles.previewTitle}>
+          Keep this recording?
         </Text>
         <Text style={styles.previewCopy}>
-          Play it back and make sure the room is covered clearly.
+          Check that the room is clear before you save it.
         </Text>
       </View>
 
+      <View style={styles.previewVideoArea}>
+        <VideoView
+          accessibilityLabel="Playback of the room you just recorded"
+          contentFit="contain"
+          nativeControls
+          player={player}
+          style={styles.videoPreview}
+          surfaceType="textureView"
+        />
+      </View>
+
       <View style={styles.previewActions}>
-        <>
-          <PrimaryButton
-            accessibilityHint="Name this room before saving the memory"
-            disabled={isSaving}
-            label="Save memory"
-            onPress={onSave}
-          />
-          <PrimaryButton
-            accessibilityHint="Delete this recording and return to the camera"
-            disabled={isSaving}
-            label="Discard"
-            onPress={onDiscard}
-            variant="secondary"
-          />
-        </>
+        <PrimaryButton
+          accessibilityHint="Name the room, then save it as a memory"
+          disabled={isSaving}
+          label="Save memory"
+          onPress={onSave}
+        />
+        <PrimaryButton
+          accessibilityHint="Deletes this recording and returns to the camera"
+          disabled={isSaving}
+          label="Discard and record again"
+          onDark
+          onPress={onDiscard}
+          style={styles.previewSecondaryAction}
+          variant="secondary"
+        />
       </View>
     </View>
   );
@@ -128,7 +127,7 @@ function RoomNameModal({
         style={styles.modalRoot}
       >
         <Pressable
-          accessibilityLabel="Close room name dialog"
+          accessibilityLabel="Close without saving"
           accessibilityRole="button"
           disabled={isSaving}
           onPress={onCancel}
@@ -136,18 +135,14 @@ function RoomNameModal({
         />
         <View style={styles.roomSheet}>
           <View style={styles.sheetHandle} />
-          <Text style={styles.sheetEyebrow}>SAVE MEMORY</Text>
-          <Text accessibilityRole="header" style={styles.sheetTitle}>
+          <Text accessibilityRole="header" heading style={styles.sheetTitle}>
             Which room is this?
           </Text>
           <Text style={styles.sheetCopy}>
-            A clear room name will make this saved memory easier to recognize.
+            Choose one, or type your own name.
           </Text>
 
-          <View
-            accessibilityLabel="Room name suggestions"
-            style={styles.suggestions}
-          >
+          <View accessibilityLabel="Room names" style={styles.suggestions}>
             {ROOM_SUGGESTIONS.map((suggestion) => {
               const isOther = suggestion === 'Other';
               const isSelected = isOther
@@ -186,17 +181,17 @@ function RoomNameModal({
             editable={!isSaving}
             maxLength={80}
             onChangeText={onChangeRoomName}
-            placeholder="Or type a room name"
-            placeholderTextColor={colors.faint}
+            placeholder="Room name"
+            placeholderTextColor={colors.textSecondary}
             returnKeyType="done"
             style={styles.roomInput}
             value={roomName}
           />
 
           <PrimaryButton
-            accessibilityHint="Copy the video to permanent storage and create a saved memory"
+            accessibilityHint="Saves this recording as a memory on this phone"
             disabled={!trimmedRoomName || isSaving}
-            label={isSaving ? 'Saving memory…' : 'Save memory'}
+            label={isSaving ? 'Saving…' : 'Save memory'}
             onPress={onSave}
           />
 
@@ -256,7 +251,7 @@ export function CaptureScreen() {
 
   async function requestPermissions() {
     setErrorMessage(
-      'Please allow camera and microphone access to record a room sweep.',
+      'Please allow camera and microphone access to record a room.',
     );
 
     const cameraResult = await requestCameraPermission();
@@ -264,7 +259,7 @@ export function CaptureScreen() {
 
     if (!cameraResult.granted || !microphoneResult.granted) {
       setErrorMessage(
-        'Camera and microphone access are both needed to record a room sweep.',
+        'Futurium needs both the camera and the microphone to record a room.',
       );
     } else {
       setErrorMessage(null);
@@ -298,10 +293,10 @@ export function CaptureScreen() {
         );
         setVideoUri(recording.uri);
       } else {
-        setErrorMessage('No video was recorded. Please try the sweep again.');
+        setErrorMessage('Nothing was recorded. Please try again.');
       }
     } catch {
-      setErrorMessage('The sweep could not be recorded. Please try again.');
+      setErrorMessage('The recording did not work. Please try again.');
     } finally {
       setIsRecording(false);
     }
@@ -348,13 +343,15 @@ export function CaptureScreen() {
       });
       router.replace('/');
     } catch {
-      setErrorMessage(
-        'This saved memory could not be created. Please try again.',
-      );
+      setErrorMessage('This memory could not be saved. Please try again.');
     } finally {
       setIsSaving(false);
     }
   }
+
+  const horizontalPadding = isCompact
+    ? layout.horizontalPaddingCompact
+    : layout.horizontalPadding;
 
   if (videoUri) {
     return (
@@ -370,8 +367,8 @@ export function CaptureScreen() {
           uri={videoUri}
         />
         {!isNamingRoom && errorMessage ? (
-          <View accessibilityLiveRegion="polite" style={styles.errorToast}>
-            <Text style={styles.errorToastText}>{errorMessage}</Text>
+          <View accessibilityLiveRegion="polite" style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>{errorMessage}</Text>
           </View>
         ) : null}
         <RoomNameModal
@@ -395,8 +392,8 @@ export function CaptureScreen() {
       <ScreenContainer dark style={styles.screen}>
         <StatusBar style="light" />
         <View style={styles.loadingState}>
-          <ActivityIndicator color={colors.mint} size="large" />
-          <Text style={styles.loadingText}>Preparing the camera…</Text>
+          <ActivityIndicator color={colors.cameraText} size="large" />
+          <Text style={styles.loadingText}>Starting the camera…</Text>
         </View>
       </ScreenContainer>
     );
@@ -404,49 +401,39 @@ export function CaptureScreen() {
 
   if (!hasPermissions) {
     return (
-      <ScreenContainer dark style={styles.screen}>
-        <StatusBar style="light" />
+      <ScreenContainer>
+        <StatusBar style="dark" />
         <View
           style={[
             styles.permissionContent,
-            {
-              paddingHorizontal: isCompact
-                ? layout.horizontalPaddingCompact
-                : layout.horizontalPadding,
-            },
+            { paddingHorizontal: horizontalPadding },
           ]}
         >
           <BackButton
             accessibilityLabel="Return home"
-            dark
             onPress={() => router.back()}
           />
 
           <View style={styles.permissionBody}>
-            <View style={styles.permissionIcon}>
-              <View style={styles.permissionLens} />
-            </View>
-            <Text style={styles.cameraEyebrow}>ROOM SWEEP</Text>
-            <Text accessibilityRole="header" style={styles.permissionTitle}>
-              Let Futurium see and hear the space.
+            <Text
+              accessibilityRole="header"
+              heading
+              style={styles.permissionTitle}
+            >
+              Futurium needs your camera and microphone
             </Text>
             <Text style={styles.permissionCopy}>
-              Camera access records the room. Microphone access adds sound to
-              the same private, 30-second video.
+              They are used only while you record a room. Each recording is up
+              to 30 seconds and stays on this phone.
             </Text>
-            <View style={styles.permissionNote}>
-              <Text style={styles.permissionNoteText}>
-                No frames are extracted or uploaded in this prototype.
-              </Text>
-            </View>
           </View>
 
           <View style={styles.permissionActions}>
             <PrimaryButton
               accessibilityHint={
                 canAskAgain
-                  ? 'Request camera and microphone permissions'
-                  : 'Open system settings to allow camera and microphone access'
+                  ? 'Asks for camera and microphone access'
+                  : 'Opens settings so you can allow camera and microphone access'
               }
               label={canAskAgain ? 'Allow access' : 'Open settings'}
               onPress={
@@ -454,7 +441,10 @@ export function CaptureScreen() {
               }
             />
             {errorMessage ? (
-              <Text accessibilityLiveRegion="polite" style={styles.errorText}>
+              <Text
+                accessibilityLiveRegion="polite"
+                style={styles.permissionError}
+              >
                 {errorMessage}
               </Text>
             ) : null}
@@ -477,143 +467,117 @@ export function CaptureScreen() {
           onCameraReady={() => setIsCameraReady(true)}
           onMountError={() =>
             setErrorMessage(
-              'The camera could not start. Check this device and try again.',
+              'The camera could not start. Close the app and try again.',
             )
           }
           ref={cameraRef}
           style={StyleSheet.absoluteFill}
           videoQuality="720p"
         />
-        <View pointerEvents="none" style={styles.cameraShade} />
-
-        <View style={styles.cameraTopBar}>
-          {!isRecording ? (
-            <BackButton
-              accessibilityLabel="Return home"
-              dark
-              onPress={() => router.back()}
-            />
-          ) : (
-            <View style={styles.recordingBadge}>
-              <View style={styles.recordingDot} />
-              <Text style={styles.recordingBadgeText}>REC</Text>
-            </View>
-          )}
-
-          <View style={styles.timerPill}>
-            <Text accessibilityLiveRegion="polite" style={styles.timerText}>
-              00:{elapsedSeconds.toString().padStart(2, '0')}
-            </Text>
-            <Text style={styles.timerLimit}> / 00:30</Text>
-          </View>
-        </View>
-
-        <View pointerEvents="none" style={styles.guideFrame}>
-          <View style={[styles.corner, styles.cornerTopLeft]} />
-          <View style={[styles.corner, styles.cornerTopRight]} />
-          <View style={[styles.corner, styles.cornerBottomLeft]} />
-          <View style={[styles.corner, styles.cornerBottomRight]} />
-        </View>
 
         <View
           style={[
-            styles.cameraBottom,
-            {
-              paddingHorizontal: isCompact
-                ? layout.horizontalPaddingCompact
-                : layout.horizontalPadding,
-            },
+            styles.cameraTopBar,
+            { paddingHorizontal: horizontalPadding },
           ]}
         >
-          <Text style={styles.cameraEyebrow}>
-            {isRecording ? 'SWEEP IN PROGRESS' : 'ROOM SWEEP'}
-          </Text>
-          <Text style={styles.cameraTitle}>
-            {isRecording
-              ? `${secondsRemaining} seconds remaining`
-              : 'Move slowly around the space.'}
-          </Text>
-          <Text style={styles.cameraCopy}>
-            {isRecording
-              ? 'Keep important surfaces and objects clearly in frame.'
-              : 'Capture shelves, tables and corners in one continuous video.'}
-          </Text>
-
-          <Pressable
-            accessibilityHint={
-              isRecording
-                ? 'Stop and preview this room sweep'
-                : 'Begin recording a room sweep for up to 30 seconds'
-            }
-            accessibilityLabel={
-              isRecording ? 'Stop room sweep' : 'Begin room sweep'
-            }
-            accessibilityRole="button"
-            disabled={!isCameraReady}
-            onPress={isRecording ? stopRecording : beginRecording}
-            style={({ pressed }) => [
-              styles.recordControl,
-              isRecording && styles.stopControl,
-              !isCameraReady && styles.controlDisabled,
-              pressed && styles.controlPressed,
-            ]}
-          >
-            {isCameraReady ? (
-              <View
-                style={
-                  isRecording ? styles.stopControlCenter : styles.recordCenter
-                }
-              />
-            ) : (
-              <ActivityIndicator color={colors.white} />
-            )}
-          </Pressable>
-
-          {errorMessage ? (
-            <Text accessibilityLiveRegion="polite" style={styles.cameraError}>
-              {errorMessage}
-            </Text>
+          {!isRecording ? (
+            <BackButton
+              accessibilityLabel="Return home without recording"
+              dark
+              label="Close"
+              onPress={() => router.back()}
+            />
           ) : (
-            <Text style={styles.cameraHint}>
-              {isRecording ? 'Tap to stop early' : 'Maximum 30 seconds'}
-            </Text>
+            <View />
           )}
+
+          <View
+            accessibilityLabel={
+              isRecording
+                ? `Recording. ${elapsedSeconds} of 30 seconds.`
+                : 'Not recording. Up to 30 seconds.'
+            }
+            accessible
+            style={[styles.timerPlate, isRecording && styles.timerRecording]}
+          >
+            {isRecording ? <View style={styles.recordingDot} /> : null}
+            <Text
+              maxFontSizeMultiplier={typography.maxScale.control}
+              style={styles.timerText}
+            >
+              {formatSweepDuration(elapsedSeconds)}
+            </Text>
+            <Text
+              maxFontSizeMultiplier={typography.maxScale.control}
+              style={styles.timerLimit}
+            >
+              {' '}
+              / 0:30
+            </Text>
+          </View>
         </View>
+      </View>
+
+      <View
+        style={[styles.controlBar, { paddingHorizontal: horizontalPadding }]}
+      >
+        {errorMessage ? (
+          <Text accessibilityLiveRegion="polite" style={styles.cameraError}>
+            {errorMessage}
+          </Text>
+        ) : (
+          <Text accessibilityLiveRegion="polite" style={styles.cameraHint}>
+            {isRecording
+              ? `Recording · ${secondsRemaining} seconds left`
+              : 'Move slowly around the room.'}
+          </Text>
+        )}
+
+        <Pressable
+          accessibilityHint={
+            isRecording
+              ? 'Stops recording so you can review it'
+              : 'Records the room for up to 30 seconds'
+          }
+          accessibilityLabel={isRecording ? 'Stop recording' : 'Record'}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !isCameraReady }}
+          disabled={!isCameraReady}
+          onPress={isRecording ? stopRecording : beginRecording}
+          style={({ pressed }) => [
+            styles.recordControl,
+            isRecording && styles.recordControlActive,
+            !isCameraReady && styles.controlDisabled,
+            pressed && styles.controlPressed,
+          ]}
+        >
+          {isCameraReady ? (
+            <View
+              style={isRecording ? styles.stopSquare : styles.recordCircle}
+            />
+          ) : (
+            <ActivityIndicator color={colors.cameraText} />
+          )}
+        </Pressable>
+
+        <Text
+          maxFontSizeMultiplier={typography.maxScale.control}
+          style={styles.controlLabel}
+        >
+          {isCameraReady ? (isRecording ? 'Stop' : 'Record') : 'Getting ready'}
+        </Text>
       </View>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  cameraBottom: {
-    alignItems: 'center',
-    bottom: 0,
-    left: 0,
-    paddingBottom: spacing.lg,
-    position: 'absolute',
-    right: 0,
-  },
-  cameraCopy: {
-    color: 'rgba(250,251,249,0.76)',
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
-    marginTop: spacing.xs,
-    maxWidth: 420,
-    textAlign: 'center',
-  },
   cameraError: {
-    color: '#FFD5D1',
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
-    marginTop: spacing.sm,
+    color: colors.errorOnDark,
+    fontSize: typography.size.body,
+    lineHeight: typography.lineHeight.body,
     textAlign: 'center',
-  },
-  cameraEyebrow: {
-    color: colors.mint,
-    fontSize: typography.size.caption,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.6,
-    lineHeight: typography.lineHeight.caption,
   },
   cameraFrame: {
     backgroundColor: colors.camera,
@@ -621,77 +585,40 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cameraHint: {
-    color: 'rgba(250,251,249,0.66)',
-    fontSize: typography.size.caption,
-    marginTop: spacing.sm,
-  },
-  cameraShade: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: colors.overlay,
-    opacity: 0.42,
-  },
-  cameraTitle: {
-    color: colors.white,
-    fontSize: 22,
-    fontWeight: typography.weight.semibold,
-    lineHeight: 28,
-    marginTop: spacing.xs,
+    color: colors.cameraText,
+    fontSize: typography.size.body,
+    lineHeight: typography.lineHeight.body,
     textAlign: 'center',
   },
   cameraTopBar: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    left: spacing.md,
+    left: 0,
     position: 'absolute',
-    right: spacing.md,
+    right: 0,
     top: spacing.sm,
   },
+  controlBar: {
+    alignItems: 'center',
+    backgroundColor: colors.camera,
+    paddingBottom: spacing.md,
+    paddingTop: spacing.md,
+  },
   controlDisabled: {
-    opacity: 0.55,
+    opacity: 0.5,
+  },
+  controlLabel: {
+    color: colors.cameraText,
+    fontSize: typography.size.body,
+    fontWeight: typography.weight.semibold,
+    marginTop: spacing.xs,
   },
   controlPressed: {
-    transform: [{ scale: 0.94 }],
+    opacity: 0.8,
   },
-  corner: {
-    borderColor: 'rgba(255,255,255,0.68)',
-    height: 36,
-    position: 'absolute',
-    width: 36,
-  },
-  cornerBottomLeft: {
-    borderBottomWidth: 1,
-    borderLeftWidth: 1,
-    bottom: 0,
-    left: 0,
-  },
-  cornerBottomRight: {
-    borderBottomWidth: 1,
-    borderRightWidth: 1,
-    bottom: 0,
-    right: 0,
-  },
-  cornerTopLeft: {
-    borderLeftWidth: 1,
-    borderTopWidth: 1,
-    left: 0,
-    top: 0,
-  },
-  cornerTopRight: {
-    borderRightWidth: 1,
-    borderTopWidth: 1,
-    right: 0,
-    top: 0,
-  },
-  errorText: {
-    color: '#FFD5D1',
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
-    marginTop: spacing.md,
-    textAlign: 'center',
-  },
-  errorToast: {
-    backgroundColor: colors.danger,
+  errorBanner: {
+    backgroundColor: colors.error,
     borderRadius: radii.md,
     left: spacing.lg,
     padding: spacing.md,
@@ -699,17 +626,11 @@ const styles = StyleSheet.create({
     right: spacing.lg,
     top: spacing.lg,
   },
-  errorToastText: {
-    color: colors.white,
-    fontSize: typography.size.bodySmall,
+  errorBannerText: {
+    color: colors.onPrimary,
+    fontSize: typography.size.body,
+    lineHeight: typography.lineHeight.body,
     textAlign: 'center',
-  },
-  guideFrame: {
-    bottom: 238,
-    left: spacing.lg,
-    position: 'absolute',
-    right: spacing.lg,
-    top: 90,
   },
   loadingState: {
     alignItems: 'center',
@@ -717,13 +638,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   loadingText: {
-    color: colors.white,
+    color: colors.cameraText,
     fontSize: typography.size.body,
     marginTop: spacing.md,
   },
   modalBackdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(10,14,11,0.62)',
+    backgroundColor: colors.backdrop,
   },
   modalRoot: {
     flex: 1,
@@ -733,7 +654,6 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
   },
   permissionBody: {
-    alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
   },
@@ -745,220 +665,164 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   permissionCopy: {
-    color: colors.faint,
+    color: colors.textSecondary,
     fontSize: typography.size.body,
     lineHeight: typography.lineHeight.body,
-    marginTop: spacing.sm,
-    maxWidth: 450,
-    textAlign: 'center',
+    marginTop: spacing.md,
+    maxWidth: 480,
   },
-  permissionIcon: {
-    alignItems: 'center',
-    backgroundColor: colors.cameraSoft,
-    borderColor: 'rgba(189,210,198,0.24)',
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    height: 82,
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-    width: 82,
-  },
-  permissionLens: {
-    borderColor: colors.mint,
-    borderRadius: radii.pill,
-    borderWidth: 2,
-    height: 28,
-    width: 28,
-  },
-  permissionNote: {
-    backgroundColor: colors.cameraSoft,
-    borderRadius: radii.pill,
-    marginTop: spacing.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  permissionNoteText: {
-    color: colors.mint,
-    fontSize: typography.size.caption,
-    lineHeight: typography.lineHeight.caption,
-    textAlign: 'center',
+  permissionError: {
+    color: colors.error,
+    fontSize: typography.size.body,
+    lineHeight: typography.lineHeight.body,
+    marginTop: spacing.md,
   },
   permissionTitle: {
-    color: colors.white,
-    fontSize: typography.size.heading,
+    color: colors.text,
+    fontSize: typography.size.title,
     fontWeight: typography.weight.semibold,
-    letterSpacing: -1,
-    lineHeight: typography.lineHeight.heading,
-    marginTop: spacing.sm,
+    lineHeight: typography.lineHeight.title,
     maxWidth: 480,
-    textAlign: 'center',
   },
   previewActions: {
-    bottom: spacing.lg,
-    left: spacing.lg,
-    position: 'absolute',
-    right: spacing.lg,
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
   },
   previewCopy: {
-    color: 'rgba(250,251,249,0.74)',
+    color: colors.cameraTextSecondary,
     fontSize: typography.size.body,
     lineHeight: typography.lineHeight.body,
-    marginTop: spacing.sm,
-    maxWidth: 480,
+    marginTop: spacing.xxs,
   },
   previewHeader: {
-    left: spacing.lg,
-    position: 'absolute',
-    right: spacing.lg,
-    top: spacing.xl,
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
   },
   previewScreen: {
     flex: 1,
   },
-  previewShade: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: colors.overlay,
+  previewSecondaryAction: {
+    marginTop: spacing.sm,
   },
   previewTitle: {
-    color: colors.white,
-    fontSize: typography.size.heading,
+    color: colors.cameraText,
+    fontSize: typography.size.title,
     fontWeight: typography.weight.semibold,
-    letterSpacing: -1,
-    lineHeight: typography.lineHeight.heading,
-    marginTop: spacing.xs,
+    lineHeight: typography.lineHeight.title,
   },
-  recordCenter: {
-    backgroundColor: '#E3665D',
+  previewVideoArea: {
+    backgroundColor: colors.camera,
+    flex: 1,
+  },
+  recordCircle: {
+    backgroundColor: colors.error,
     borderRadius: radii.pill,
-    height: 48,
-    width: 48,
+    height: 54,
+    width: 54,
   },
   recordControl: {
     alignItems: 'center',
-    borderColor: colors.white,
+    borderColor: colors.cameraText,
     borderRadius: radii.pill,
-    borderWidth: 3,
-    height: 70,
+    borderWidth: 4,
+    height: 76,
     justifyContent: 'center',
-    marginTop: spacing.md,
-    width: 70,
+    marginTop: spacing.sm,
+    width: 76,
   },
-  recordingBadge: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(10,14,11,0.68)',
-    borderRadius: radii.pill,
-    flexDirection: 'row',
-    minHeight: layout.minTouchTarget,
-    paddingHorizontal: spacing.md,
-  },
-  recordingBadgeText: {
-    color: colors.white,
-    fontSize: typography.size.caption,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.4,
+  recordControlActive: {
+    borderColor: colors.error,
   },
   recordingDot: {
-    backgroundColor: '#E3665D',
+    backgroundColor: colors.error,
     borderRadius: radii.pill,
-    height: 8,
+    height: 12,
     marginRight: spacing.xs,
-    width: 8,
-  },
-  screen: {
-    backgroundColor: colors.camera,
+    width: 12,
   },
   roomInput: {
-    backgroundColor: colors.canvas,
-    borderColor: colors.lineStrong,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderRadius: radii.md,
-    borderWidth: 1,
-    color: colors.ink,
+    borderWidth: 1.5,
+    color: colors.text,
     fontSize: typography.size.body,
     marginBottom: spacing.md,
-    minHeight: 56,
+    minHeight: layout.buttonHeight,
     paddingHorizontal: spacing.md,
   },
   roomSheet: {
     alignSelf: 'center',
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radii.xl,
-    borderTopRightRadius: radii.xl,
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
     maxWidth: layout.maxContentWidth,
     paddingBottom: spacing.xl,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     width: '100%',
   },
+  screen: {
+    backgroundColor: colors.camera,
+  },
   sheetCopy: {
-    color: colors.muted,
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
-    marginTop: spacing.xs,
+    color: colors.textSecondary,
+    fontSize: typography.size.body,
+    lineHeight: typography.lineHeight.body,
+    marginTop: spacing.xxs,
   },
   sheetError: {
-    color: colors.danger,
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
-    marginTop: spacing.md,
-    textAlign: 'center',
-  },
-  sheetEyebrow: {
-    color: colors.sage,
-    fontSize: typography.size.caption,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.5,
-    lineHeight: typography.lineHeight.caption,
+    color: colors.error,
+    fontSize: typography.size.body,
+    lineHeight: typography.lineHeight.body,
     marginTop: spacing.md,
   },
   sheetHandle: {
     alignSelf: 'center',
-    backgroundColor: colors.lineStrong,
+    backgroundColor: colors.border,
     borderRadius: radii.pill,
     height: 4,
+    marginBottom: spacing.lg,
     width: 40,
   },
   sheetTitle: {
-    color: colors.ink,
-    fontSize: typography.size.heading,
+    color: colors.text,
+    fontSize: typography.size.title,
     fontWeight: typography.weight.semibold,
-    letterSpacing: -1,
-    lineHeight: typography.lineHeight.heading,
-    marginTop: spacing.xs,
+    lineHeight: typography.lineHeight.title,
   },
-  stopControl: {
-    borderColor: '#E3665D',
-  },
-  stopControlCenter: {
-    backgroundColor: '#E3665D',
+  stopSquare: {
+    backgroundColor: colors.error,
     borderRadius: radii.sm,
-    height: 27,
-    width: 27,
+    height: 30,
+    width: 30,
   },
   suggestion: {
-    backgroundColor: colors.canvas,
-    borderColor: colors.line,
-    borderRadius: radii.pill,
-    borderWidth: 1,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+    justifyContent: 'center',
     marginBottom: spacing.xs,
     marginRight: spacing.xs,
-    minHeight: 42,
+    minHeight: layout.minTouchTarget,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
   },
   suggestionPressed: {
-    opacity: 0.68,
+    opacity: 0.7,
   },
   suggestionSelected: {
-    backgroundColor: colors.sageSoft,
-    borderColor: colors.sage,
+    backgroundColor: colors.softBlue,
+    borderColor: colors.primary,
   },
   suggestionText: {
-    color: colors.inkSoft,
-    fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.medium,
+    color: colors.text,
+    fontSize: typography.size.body,
   },
   suggestionTextSelected: {
-    color: colors.sageDark,
+    color: colors.primary,
     fontWeight: typography.weight.semibold,
   },
   suggestions: {
@@ -968,21 +832,25 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   timerLimit: {
-    color: colors.faint,
-    fontSize: typography.size.bodySmall,
+    color: colors.cameraTextSecondary,
+    fontSize: typography.size.body,
+    fontVariant: ['tabular-nums'],
   },
-  timerPill: {
-    alignItems: 'baseline',
-    backgroundColor: 'rgba(10,14,11,0.68)',
-    borderRadius: radii.pill,
+  timerPlate: {
+    alignItems: 'center',
+    backgroundColor: colors.cameraPlate,
+    borderRadius: radii.md,
     flexDirection: 'row',
     minHeight: layout.minTouchTarget,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+  },
+  timerRecording: {
+    borderColor: colors.error,
+    borderWidth: 2,
   },
   timerText: {
-    color: colors.white,
-    fontSize: typography.size.body,
+    color: colors.cameraText,
+    fontSize: typography.size.title,
     fontVariant: ['tabular-nums'],
     fontWeight: typography.weight.semibold,
   },

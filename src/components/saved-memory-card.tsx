@@ -1,174 +1,214 @@
-import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState, type ComponentProps } from 'react';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 
-import { colors, radii, shadows, spacing, typography } from '@/constants/theme';
+import { Text } from '@/components/app-text';
+import { RoomIcon } from '@/components/room-icon';
+import { colors, radii, spacing, typography } from '@/constants/theme';
 import type { Sweep } from '@/database/sweep-model';
+import { safeThumbnailUrl } from '@/utils/frame-thumbnail';
 import {
+  formatRoomName,
   formatSweepDate,
   formatSweepDuration,
+  formatSweepTime,
   getSweepStatusLabel,
 } from '@/utils/sweep-formatters';
 
+const THUMBNAIL_SIZE = 60;
+const NODE_SIZE = 9;
+
 type SavedMemoryCardProps = {
+  isFirst?: boolean;
+  isLast?: boolean;
   onPress: ComponentProps<typeof Pressable>['onPress'];
   sweep: Sweep;
 };
 
-export function SavedMemoryCard({ onPress, sweep }: SavedMemoryCardProps) {
+function MemoryThumbnail({ sweep }: { sweep: Sweep }) {
+  const [hasImageError, setHasImageError] = useState(false);
+  const firstFrame = sweep.processingManifest?.frames[0];
+  const uri =
+    sweep.status === 'ready' && firstFrame
+      ? safeThumbnailUrl(firstFrame.thumbnailUrl)
+      : null;
+
+  if (uri && !hasImageError) {
+    return (
+      <Image
+        onError={() => setHasImageError(true)}
+        source={{ uri }}
+        style={styles.thumbnail}
+      />
+    );
+  }
+
+  return <RoomIcon size={THUMBNAIL_SIZE} />;
+}
+
+export function SavedMemoryCard({
+  isFirst = false,
+  isLast = false,
+  onPress,
+  sweep,
+}: SavedMemoryCardProps) {
+  const roomName = formatRoomName(sweep.roomName);
   const statusLabel = getSweepStatusLabel(sweep.status);
+  const isWorking =
+    sweep.status === 'uploading' || sweep.status === 'processing';
 
   return (
     <Pressable
-      accessibilityHint="Open this saved memory and replay its room sweep"
-      accessibilityLabel={`${sweep.roomName}. ${statusLabel}. ${formatSweepDuration(sweep.durationSeconds)} video. Saved ${formatSweepDate(sweep.createdAt)}.`}
+      accessibilityHint="Opens this memory"
+      accessibilityLabel={`${roomName}. Recorded ${formatSweepDate(sweep.createdAt)}. ${formatSweepDuration(sweep.durationSeconds)} long. ${statusLabel}.`}
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
-      <View style={styles.memoryIcon}>
-        <View style={styles.memoryLens} />
+      <Text
+        maxFontSizeMultiplier={typography.maxScale.control}
+        style={styles.time}
+      >
+        {formatSweepTime(sweep.createdAt)}
+      </Text>
+
+      <View
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={styles.rail}
+      >
+        {isFirst && isLast ? null : (
+          <View
+            style={[
+              styles.line,
+              isFirst && styles.lineStartsAtNode,
+              isLast && styles.lineEndsAtNode,
+            ]}
+          />
+        )}
+        <View style={styles.node} />
+      </View>
+
+      <View
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={styles.thumbnailSlot}
+      >
+        <MemoryThumbnail sweep={sweep} />
       </View>
 
       <View style={styles.content}>
-        <View style={styles.titleRow}>
-          <Text numberOfLines={1} style={styles.roomName}>
-            {sweep.roomName}
-          </Text>
-          <Text style={styles.arrow}>›</Text>
-        </View>
-        <Text style={styles.savedAt}>{formatSweepDate(sweep.createdAt)}</Text>
-
-        <View style={styles.metadataRow}>
-          <View
-            style={[
-              styles.statusPill,
-              sweep.status === 'failed' && styles.statusPillFailed,
-            ]}
-          >
-            <View
-              style={[
-                styles.statusDot,
-                sweep.status === 'failed' && styles.statusDotFailed,
-              ]}
-            />
+        <Text numberOfLines={3} style={styles.roomName}>
+          {roomName}
+        </Text>
+        <Text style={styles.meta}>
+          {formatSweepDuration(sweep.durationSeconds)}
+          {sweep.status !== 'saved' ? ' · ' : ''}
+          {sweep.status !== 'saved' ? (
             <Text
               style={[
-                styles.statusText,
-                sweep.status === 'failed' && styles.statusTextFailed,
+                styles.status,
+                isWorking && styles.statusWorking,
+                sweep.status === 'failed' && styles.statusFailed,
               ]}
             >
               {statusLabel}
             </Text>
-          </View>
-          <Text style={styles.duration}>
-            {formatSweepDuration(sweep.durationSeconds)} video
-          </Text>
-        </View>
+          ) : null}
+        </Text>
       </View>
     </Pressable>
   );
 }
 
+const railCenter = spacing.sm + THUMBNAIL_SIZE / 2;
+
 const styles = StyleSheet.create({
-  arrow: {
-    color: colors.sage,
-    fontSize: 27,
-    lineHeight: 28,
-    marginLeft: spacing.sm,
-  },
-  card: {
-    ...shadows.card,
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    marginBottom: spacing.sm,
-    minHeight: 126,
-    padding: spacing.md,
-  },
-  cardPressed: {
-    opacity: 0.76,
-    transform: [{ scale: 0.992 }],
-  },
   content: {
     flex: 1,
-    marginLeft: spacing.md,
-  },
-  duration: {
-    color: colors.muted,
-    fontSize: typography.size.caption,
-    lineHeight: typography.lineHeight.caption,
-    marginLeft: spacing.sm,
-  },
-  memoryIcon: {
-    alignItems: 'center',
-    backgroundColor: colors.sageSoft,
-    borderRadius: radii.md,
-    height: 64,
     justifyContent: 'center',
-    width: 64,
+    marginLeft: spacing.sm,
+    marginVertical: spacing.sm,
+    minHeight: THUMBNAIL_SIZE,
   },
-  memoryLens: {
-    borderColor: colors.sage,
+  line: {
+    backgroundColor: colors.secondaryBlue,
+    bottom: 0,
+    left: 9.25,
+    position: 'absolute',
+    top: 0,
+    width: 1.5,
+  },
+  lineEndsAtNode: {
+    bottom: undefined,
+    height: railCenter,
+  },
+  lineStartsAtNode: {
+    top: railCenter,
+  },
+  meta: {
+    color: colors.textSecondary,
+    fontSize: typography.size.small,
+    lineHeight: typography.lineHeight.small,
+    marginTop: 2,
+  },
+  node: {
+    backgroundColor: colors.background,
+    borderColor: colors.primary,
     borderRadius: radii.pill,
     borderWidth: 2,
-    height: 24,
-    width: 24,
+    height: NODE_SIZE,
+    left: 10 - NODE_SIZE / 2,
+    position: 'absolute',
+    top: railCenter - NODE_SIZE / 2,
+    width: NODE_SIZE,
   },
-  metadataRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: spacing.sm,
+  rail: {
+    alignSelf: 'stretch',
+    marginHorizontal: spacing.xs,
+    width: 20,
   },
   roomName: {
-    color: colors.ink,
-    flex: 1,
-    fontSize: typography.size.bodyLarge,
+    color: colors.text,
+    fontSize: typography.size.body,
     fontWeight: typography.weight.semibold,
-    lineHeight: typography.lineHeight.bodyLarge,
+    lineHeight: typography.lineHeight.body,
   },
-  savedAt: {
-    color: colors.muted,
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
-    marginTop: spacing.xxs,
-  },
-  statusDot: {
-    backgroundColor: colors.sage,
-    borderRadius: radii.pill,
-    height: 6,
-    marginRight: 6,
-    width: 6,
-  },
-  statusDotFailed: {
-    backgroundColor: colors.danger,
-  },
-  statusPill: {
-    alignItems: 'center',
-    backgroundColor: colors.sageSoft,
-    borderRadius: radii.pill,
+  row: {
+    alignItems: 'flex-start',
     flexDirection: 'row',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
+    minHeight: THUMBNAIL_SIZE + spacing.sm * 2,
   },
-  statusPillFailed: {
-    backgroundColor: colors.dangerSoft,
+  rowPressed: {
+    opacity: 0.6,
   },
-  statusText: {
-    color: colors.sageDark,
-    fontSize: 10,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 0.6,
-    lineHeight: 14,
+  status: {
+    color: colors.textSecondary,
+    fontWeight: typography.weight.medium,
   },
-  statusTextFailed: {
-    color: colors.danger,
+  statusFailed: {
+    color: colors.error,
+    fontWeight: typography.weight.semibold,
   },
-  titleRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
+  statusWorking: {
+    color: colors.primary,
+  },
+  thumbnail: {
+    backgroundColor: colors.softBlue,
+    borderRadius: radii.sm,
+    height: THUMBNAIL_SIZE,
+    width: THUMBNAIL_SIZE,
+  },
+  time: {
+    color: colors.primary,
+    fontSize: typography.size.caption,
+    fontVariant: ['tabular-nums'],
+    fontWeight: typography.weight.semibold,
+    lineHeight: typography.lineHeight.caption,
+    marginTop: railCenter - typography.lineHeight.caption / 2,
+    textAlign: 'right',
+    width: 60,
+  },
+  thumbnailSlot: {
+    marginVertical: spacing.sm,
   },
 });

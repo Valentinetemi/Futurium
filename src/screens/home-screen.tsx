@@ -1,24 +1,46 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
 
-import { HomeActionCard } from '@/components/home-action-card';
-import { MemoryMark } from '@/components/memory-mark';
+import { Text } from '@/components/app-text';
+import { PrimaryButton } from '@/components/primary-button';
 import { SavedMemoryCard } from '@/components/saved-memory-card';
 import { ScreenContainer } from '@/components/screen-container';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 import type { Sweep } from '@/database/sweep-model';
 import { listSweeps } from '@/database/sweep-repository';
+import { formatSweepDay } from '@/utils/sweep-formatters';
+
+type MemoryDay = {
+  label: string;
+  sweeps: Sweep[];
+};
+
+function groupByDay(sweeps: Sweep[]) {
+  const days: MemoryDay[] = [];
+
+  for (const sweep of sweeps) {
+    const label = formatSweepDay(sweep.createdAt);
+    const currentDay = days[days.length - 1];
+
+    if (currentDay?.label === label) {
+      currentDay.sweeps.push(sweep);
+    } else {
+      days.push({ label, sweeps: [sweep] });
+    }
+  }
+
+  return days;
+}
 
 export function HomeScreen() {
   const router = useRouter();
@@ -28,6 +50,7 @@ export function HomeScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const { width } = useWindowDimensions();
   const isCompact = width < layout.compactBreakpoint;
+  const memoryDays = useMemo(() => groupByDay(sweeps), [sweeps]);
 
   const refreshSweeps = useCallback(async () => {
     setIsLoadingSweeps(true);
@@ -36,7 +59,7 @@ export function HomeScreen() {
     try {
       setSweeps(await listSweeps(database));
     } catch {
-      setLoadError('Saved memories could not be loaded. Please try again.');
+      setLoadError('Your memories could not be loaded.');
     } finally {
       setIsLoadingSweeps(false);
     }
@@ -64,18 +87,15 @@ export function HomeScreen() {
       >
         <View style={styles.contentWidth}>
           <View style={styles.topBar}>
-            <View style={styles.brand}>
-              <MemoryMark />
-              <View style={styles.brandCopy}>
-                <Text style={styles.productName}>Futurium</Text>
-                <Text style={styles.productType}>VISUAL MEMORY</Text>
-              </View>
-            </View>
+            <Text heading style={styles.wordmark}>
+              Futurium
+            </Text>
 
             <Pressable
-              accessibilityHint="View free and Plus plan details"
+              accessibilityHint="Shows the free and Plus plans"
               accessibilityLabel="Futurium Plus"
               accessibilityRole="button"
+              hitSlop={8}
               onPress={() => router.push('/plus')}
               style={({ pressed }) => [
                 styles.plusButton,
@@ -83,105 +103,124 @@ export function HomeScreen() {
               ]}
             >
               <View style={styles.plusDot} />
-              <Text style={styles.plusLabel}>PLUS</Text>
+              <Text
+                maxFontSizeMultiplier={typography.maxScale.control}
+                style={styles.plusLabel}
+              >
+                Plus
+              </Text>
             </Pressable>
           </View>
 
-          <View style={styles.hero}>
-            <Text style={styles.eyebrow}>A MEMORY FOR YOUR SPACES</Text>
+          <Text accessibilityRole="header" heading style={styles.headline}>
+            Record a room,{'\n'}look back later.
+          </Text>
+
+          <PrimaryButton
+            accessibilityHint="Opens the camera to record a room"
+            label="Record a space"
+            onPress={() => router.push('/capture')}
+          />
+
+          <Pressable
+            accessibilityHint="Search is not available yet. Opens a short explanation."
+            accessibilityLabel="Find something. Coming soon."
+            accessibilityRole="button"
+            onPress={() => router.push('/find')}
+            style={({ pressed }) => [
+              styles.findAction,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text
+              maxFontSizeMultiplier={typography.maxScale.control}
+              style={styles.findActionText}
+            >
+              Find something
+            </Text>
+            <Text
+              maxFontSizeMultiplier={typography.maxScale.control}
+              style={styles.findActionNote}
+            >
+              Coming soon
+            </Text>
+          </Pressable>
+
+          <View style={styles.memoriesHeader}>
             <Text
               accessibilityRole="header"
-              style={[styles.headline, isCompact && styles.headlineCompact]}
+              heading
+              style={styles.sectionTitle}
             >
-              Sweep now.{`\n`}Ask later.
+              Recent memories
             </Text>
-            <Text style={styles.intro}>
-              Record a room once. Keep a visual memory of the space for later.
-            </Text>
-          </View>
-
-          <View accessibilityLabel="Memory actions" style={styles.actions}>
-            <HomeActionCard
-              description="Capture one smooth, 30-second view of a room."
-              kind="record"
-              onPress={() => router.push('/capture')}
-              title="Record a space"
-            />
-            <HomeActionCard
-              description="Preview the object search experience coming next."
-              kind="find"
-              onPress={() => router.push('/find')}
-              title="Find something"
-            />
-          </View>
-
-          <View style={styles.recentHeader}>
-            <Text style={styles.sectionTitle}>Recent memories</Text>
-            <Text style={styles.sectionCount}>
-              {sweeps.length} {sweeps.length === 1 ? 'SPACE' : 'SPACES'}
-            </Text>
+            {!isLoadingSweeps && !loadError && sweeps.length > 0 ? (
+              <Text style={styles.sectionCount}>
+                {sweeps.length} {sweeps.length === 1 ? 'memory' : 'memories'}
+              </Text>
+            ) : null}
           </View>
 
           {isLoadingSweeps ? (
-            <View accessibilityLiveRegion="polite" style={styles.loadingState}>
-              <ActivityIndicator color={colors.sage} />
-              <Text style={styles.loadingText}>Loading saved memories…</Text>
+            <View accessibilityLiveRegion="polite" style={styles.quietState}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={styles.quietText}>Loading your memories…</Text>
             </View>
           ) : null}
 
           {!isLoadingSweeps && loadError ? (
-            <View accessibilityLiveRegion="polite" style={styles.errorState}>
-              <Text style={styles.errorTitle}>Memories unavailable</Text>
-              <Text style={styles.errorCopy}>{loadError}</Text>
+            <View accessibilityLiveRegion="polite" style={styles.message}>
+              <Text style={styles.errorTitle}>{loadError}</Text>
               <Pressable
-                accessibilityLabel="Retry loading saved memories"
+                accessibilityLabel="Try loading memories again"
                 accessibilityRole="button"
                 onPress={() => void refreshSweeps()}
                 style={({ pressed }) => [
-                  styles.retryButton,
+                  styles.textButton,
                   pressed && styles.pressed,
                 ]}
               >
-                <Text style={styles.retryText}>Try again</Text>
+                <Text style={styles.textButtonLabel}>Try again</Text>
               </Pressable>
             </View>
           ) : null}
 
-          {!isLoadingSweeps && !loadError
-            ? sweeps.map((sweep) => (
-                <SavedMemoryCard
-                  key={sweep.id}
-                  onPress={() =>
-                    router.push({
-                      params: { id: String(sweep.id) },
-                      pathname: '/memories/[id]',
-                    })
-                  }
-                  sweep={sweep}
-                />
-              ))
-            : null}
-
           {!isLoadingSweeps && !loadError && sweeps.length === 0 ? (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIcon}>
-                <View style={styles.emptyFrame} />
-                <View style={styles.emptyFrameOffset} />
-              </View>
-              <Text style={styles.emptyTitle}>No spaces saved yet</Text>
+            <View style={styles.message}>
+              <Text style={styles.emptyTitle}>No memories yet</Text>
               <Text style={styles.emptyCopy}>
-                Your saved room sweeps will appear here as saved memories.
+                Rooms you record will appear here, newest first.
               </Text>
             </View>
           ) : null}
 
-          <View style={styles.privacyNote}>
-            <View style={styles.privacyDot} />
-            <Text style={styles.privacyText}>
-              Saved videos stay on this device unless you choose to upload one
-              for processing.
-            </Text>
-          </View>
+          {!isLoadingSweeps && !loadError
+            ? memoryDays.map((day) => (
+                <View key={day.label} style={styles.day}>
+                  <Text accessibilityRole="header" style={styles.dayLabel}>
+                    {day.label}
+                  </Text>
+                  {day.sweeps.map((sweep, index) => (
+                    <SavedMemoryCard
+                      isFirst={index === 0}
+                      isLast={index === day.sweeps.length - 1}
+                      key={sweep.id}
+                      onPress={() =>
+                        router.push({
+                          params: { id: String(sweep.id) },
+                          pathname: '/memories/[id]',
+                        })
+                      }
+                      sweep={sweep}
+                    />
+                  ))}
+                </View>
+              ))
+            : null}
+
+          <Text style={styles.privacyText}>
+            Videos stay on this phone unless you choose to prepare one.
+          </Text>
         </View>
       </ScrollView>
     </ScreenContainer>
@@ -189,221 +228,143 @@ export function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  actions: {
-    marginBottom: spacing.xl,
-  },
-  brand: {
-    alignItems: 'center',
-    flexDirection: 'row',
-  },
-  brandCopy: {
-    marginLeft: spacing.sm,
-  },
   contentWidth: {
     alignSelf: 'center',
     maxWidth: layout.maxContentWidth,
     width: '100%',
   },
+  day: {
+    marginTop: spacing.md,
+  },
+  dayLabel: {
+    color: colors.text,
+    fontSize: typography.size.small,
+    fontWeight: typography.weight.semibold,
+    lineHeight: typography.lineHeight.small,
+    marginBottom: spacing.xxs,
+  },
   emptyCopy: {
-    color: colors.muted,
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
-    marginTop: spacing.xs,
-    maxWidth: 320,
-    textAlign: 'center',
-  },
-  emptyFrame: {
-    borderColor: colors.sage,
-    borderRadius: radii.sm,
-    borderWidth: 1.5,
-    height: 31,
-    left: 7,
-    position: 'absolute',
-    top: 7,
-    width: 38,
-  },
-  emptyFrameOffset: {
-    borderColor: colors.mint,
-    borderRadius: radii.sm,
-    borderWidth: 1.5,
-    bottom: 7,
-    height: 31,
-    position: 'absolute',
-    right: 7,
-    width: 38,
-  },
-  emptyIcon: {
-    backgroundColor: colors.sageSoft,
-    borderRadius: radii.lg,
-    height: 62,
-    marginBottom: spacing.md,
-    width: 62,
-  },
-  emptyState: {
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderRadius: radii.lg,
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
+    color: colors.textSecondary,
+    fontSize: typography.size.body,
+    lineHeight: typography.lineHeight.body,
+    marginTop: spacing.xxs,
   },
   emptyTitle: {
-    color: colors.ink,
+    color: colors.text,
     fontSize: typography.size.body,
     fontWeight: typography.weight.semibold,
-  },
-  errorCopy: {
-    color: colors.muted,
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
-    marginTop: spacing.xs,
-    textAlign: 'center',
-  },
-  errorState: {
-    alignItems: 'center',
-    backgroundColor: colors.dangerSoft,
-    borderRadius: radii.lg,
-    padding: spacing.lg,
+    lineHeight: typography.lineHeight.body,
   },
   errorTitle: {
-    color: colors.danger,
+    color: colors.error,
     fontSize: typography.size.body,
     fontWeight: typography.weight.semibold,
+    lineHeight: typography.lineHeight.body,
   },
-  eyebrow: {
-    color: colors.sage,
-    fontSize: typography.size.caption,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.6,
-    lineHeight: typography.lineHeight.caption,
-  },
-  headline: {
-    color: colors.ink,
-    fontSize: typography.size.display,
-    fontWeight: typography.weight.semibold,
-    letterSpacing: -2.2,
-    lineHeight: typography.lineHeight.display,
-    marginTop: spacing.sm,
-  },
-  headlineCompact: {
-    fontSize: 42,
-    lineHeight: 47,
-  },
-  hero: {
-    marginBottom: spacing.xl,
-    marginTop: spacing.xxl,
-  },
-  intro: {
-    color: colors.inkSoft,
-    fontSize: typography.size.bodyLarge,
-    lineHeight: typography.lineHeight.bodyLarge,
-    marginTop: spacing.md,
-    maxWidth: 540,
-  },
-  loadingState: {
+  findAction: {
+    alignContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderRadius: radii.lg,
+    borderColor: colors.border,
+    borderRadius: radii.md,
     borderWidth: 1,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'center',
-    minHeight: 96,
-    padding: spacing.lg,
+    marginTop: spacing.sm,
+    minHeight: layout.buttonHeight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
   },
-  loadingText: {
-    color: colors.muted,
-    fontSize: typography.size.bodySmall,
-    marginLeft: spacing.sm,
+  findActionNote: {
+    color: colors.textSecondary,
+    fontSize: typography.size.small,
+    marginLeft: spacing.xs,
+  },
+  findActionText: {
+    color: colors.textSecondary,
+    fontSize: typography.size.body,
+    fontWeight: typography.weight.medium,
+  },
+  headline: {
+    color: colors.text,
+    fontSize: typography.size.heading,
+    fontWeight: typography.weight.semibold,
+    letterSpacing: -0.3,
+    lineHeight: typography.lineHeight.heading,
+    marginBottom: spacing.lg,
+    marginTop: spacing.md,
+  },
+  memoriesHeader: {
+    alignItems: 'baseline',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: spacing.xl,
+  },
+  message: {
+    marginTop: spacing.sm,
   },
   plusButton: {
     alignItems: 'center',
-    backgroundColor: colors.sageSoft,
-    borderRadius: radii.pill,
     flexDirection: 'row',
     minHeight: layout.minTouchTarget,
-    paddingHorizontal: spacing.md,
+    paddingLeft: spacing.sm,
   },
   plusDot: {
-    backgroundColor: colors.sage,
+    backgroundColor: colors.accent,
     borderRadius: radii.pill,
-    height: 6,
+    height: 7,
     marginRight: spacing.xs,
-    width: 6,
+    width: 7,
   },
   plusLabel: {
-    color: colors.sageDark,
-    fontSize: 10,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.2,
+    color: colors.primary,
+    fontSize: typography.size.small,
+    fontWeight: typography.weight.semibold,
   },
   pressed: {
-    opacity: 0.64,
-  },
-  privacyDot: {
-    backgroundColor: colors.sage,
-    borderRadius: radii.pill,
-    height: 5,
-    marginRight: spacing.xs,
-    width: 5,
-  },
-  privacyNote: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: spacing.lg,
+    opacity: 0.6,
   },
   privacyText: {
-    color: colors.muted,
-    fontSize: 11,
-    lineHeight: 16,
+    color: colors.textSecondary,
+    fontSize: typography.size.caption,
+    lineHeight: typography.lineHeight.caption,
+    marginTop: spacing.xl,
   },
-  productName: {
-    color: colors.ink,
-    fontSize: typography.size.body,
-    fontWeight: typography.weight.bold,
-    letterSpacing: -0.2,
-  },
-  productType: {
-    color: colors.muted,
-    fontSize: 8,
-    fontWeight: typography.weight.semibold,
-    letterSpacing: 1.3,
-    marginTop: 1,
-  },
-  recentHeader: {
+  quietState: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  retryButton: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.pill,
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     minHeight: layout.minTouchTarget,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
   },
-  retryText: {
-    color: colors.danger,
-    fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.semibold,
+  quietText: {
+    color: colors.textSecondary,
+    fontSize: typography.size.body,
+    marginLeft: spacing.sm,
   },
   scrollContent: {
     paddingBottom: spacing.xl,
-    paddingTop: spacing.xs,
+    paddingTop: spacing.xxs,
   },
   sectionCount: {
-    color: colors.faint,
-    fontSize: 9,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.2,
+    color: colors.textSecondary,
+    fontSize: typography.size.small,
   },
   sectionTitle: {
-    color: colors.ink,
+    color: colors.text,
+    fontSize: typography.size.title,
+    fontWeight: typography.weight.semibold,
+    lineHeight: typography.lineHeight.title,
+    marginRight: spacing.sm,
+  },
+  textButton: {
+    alignSelf: 'flex-start',
+    justifyContent: 'center',
+    marginTop: spacing.xxs,
+    minHeight: layout.minTouchTarget,
+  },
+  textButtonLabel: {
+    color: colors.primary,
     fontSize: typography.size.body,
     fontWeight: typography.weight.semibold,
   },
@@ -411,6 +372,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    minHeight: 56,
+    minHeight: 52,
+  },
+  wordmark: {
+    color: colors.primary,
+    fontSize: typography.size.lead,
+    fontWeight: typography.weight.bold,
+    letterSpacing: -0.2,
   },
 });

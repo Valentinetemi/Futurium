@@ -9,11 +9,11 @@ import {
   Alert,
   ScrollView,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
 
+import { Text } from '@/components/app-text';
 import { BackButton } from '@/components/back-button';
 import { PrimaryButton } from '@/components/primary-button';
 import { ProcessingSummary } from '@/components/processing-summary';
@@ -36,9 +36,9 @@ import {
   isSweepVideoAvailable,
 } from '@/services/sweep-storage';
 import {
+  formatRoomName,
   formatSweepDate,
   formatSweepDuration,
-  getSweepStatusLabel,
 } from '@/utils/sweep-formatters';
 
 type SavedMemoryVideoProps = {
@@ -63,22 +63,17 @@ function SavedMemoryVideo({ uri }: SavedMemoryVideoProps) {
 
   if (status === 'error') {
     return (
-      <View accessibilityLiveRegion="polite" style={styles.videoUnavailable}>
-        <View style={styles.unavailableIcon}>
-          <Text style={styles.unavailableIconText}>!</Text>
-        </View>
-        <Text style={styles.unavailableTitle}>Video cannot be played</Text>
-        <Text style={styles.unavailableCopy}>
-          The saved file may be damaged or use a format this device cannot open.
-        </Text>
-      </View>
+      <VideoMessage
+        body="The file may be damaged, or this phone cannot open its format."
+        title="This video cannot be played"
+      />
     );
   }
 
   return (
     <View style={styles.videoFrame}>
       <VideoView
-        accessibilityLabel="Saved room sweep video player"
+        accessibilityLabel="Video of this room"
         contentFit="contain"
         nativeControls
         player={player}
@@ -87,10 +82,18 @@ function SavedMemoryVideo({ uri }: SavedMemoryVideoProps) {
       />
       {status !== 'readyToPlay' ? (
         <View pointerEvents="none" style={styles.videoLoading}>
-          <ActivityIndicator color={colors.white} />
-          <Text style={styles.videoLoadingText}>Preparing video…</Text>
+          <ActivityIndicator color={colors.cameraText} />
         </View>
       ) : null}
+    </View>
+  );
+}
+
+function VideoMessage({ body, title }: { body: string; title: string }) {
+  return (
+    <View accessibilityLiveRegion="polite" style={styles.videoMessage}>
+      <Text style={styles.videoMessageTitle}>{title}</Text>
+      <Text style={styles.videoMessageBody}>{body}</Text>
     </View>
   );
 }
@@ -248,13 +251,13 @@ export function SavedMemoryScreen() {
 
   function confirmUpload(savedSweep: Sweep) {
     Alert.alert(
-      'Upload for processing?',
-      'A copy of this room video will be sent to your configured server. The uploaded original is deleted after processing succeeds or fails. Your saved on-device video remains available for replay.',
+      'Prepare this memory?',
+      'A copy of this video will be sent to your processing server. The server deletes the copy once it has finished, whether or not it succeeds. Your video stays on this phone.',
       [
         { style: 'cancel', text: 'Cancel' },
         {
           onPress: () => void uploadForProcessing(savedSweep),
-          text: 'Upload',
+          text: 'Send copy',
         },
       ],
     );
@@ -269,7 +272,7 @@ export function SavedMemoryScreen() {
       router.replace('/');
     } catch {
       setDeleteError(
-        'This saved memory could not be deleted. Its record has been kept so you can try again.',
+        'This memory could not be deleted. It is still here, so you can try again.',
       );
       setIsDeleting(false);
     }
@@ -277,8 +280,8 @@ export function SavedMemoryScreen() {
 
   function confirmDelete(savedSweep: Sweep) {
     Alert.alert(
-      'Delete saved memory?',
-      `This permanently removes ${savedSweep.roomName} and its local video from this device.`,
+      'Delete this memory?',
+      `${formatRoomName(savedSweep.roomName)} and its video will be removed from this phone. This cannot be undone.`,
       [
         { style: 'cancel', text: 'Cancel' },
         {
@@ -306,25 +309,29 @@ export function SavedMemoryScreen() {
       >
         <View style={styles.contentWidth}>
           <BackButton
-            accessibilityLabel="Return to recent memories"
+            accessibilityLabel="Return to your memories"
+            label="Memories"
             onPress={() => router.back()}
           />
 
           {isLoading ? (
-            <View accessibilityLiveRegion="polite" style={styles.loadingState}>
-              <ActivityIndicator color={colors.sage} size="large" />
-              <Text style={styles.loadingText}>Loading saved memory…</Text>
+            <View accessibilityLiveRegion="polite" style={styles.centerState}>
+              <ActivityIndicator color={colors.primary} size="large" />
+              <Text style={styles.centerCopy}>Loading this memory…</Text>
             </View>
           ) : null}
 
           {!isLoading && (loadError || !sweep) ? (
-            <View accessibilityLiveRegion="polite" style={styles.notFoundState}>
-              <Text style={styles.notFoundEyebrow}>SAVED MEMORY</Text>
-              <Text accessibilityRole="header" style={styles.notFoundTitle}>
-                Memory unavailable
+            <View accessibilityLiveRegion="polite" style={styles.centerState}>
+              <Text
+                accessibilityRole="header"
+                heading
+                style={styles.centerTitle}
+              >
+                Memory not found
               </Text>
-              <Text style={styles.notFoundCopy}>
-                {loadError ?? 'This saved memory no longer exists.'}
+              <Text style={styles.centerCopy}>
+                {loadError ?? 'This memory is no longer on this phone.'}
               </Text>
             </View>
           ) : null}
@@ -332,68 +339,23 @@ export function SavedMemoryScreen() {
           {!isLoading && sweep ? (
             <>
               <View style={styles.header}>
-                <Text style={styles.eyebrow}>SAVED MEMORY</Text>
-                <Text accessibilityRole="header" style={styles.title}>
-                  {sweep.roomName}
+                <Text accessibilityRole="header" heading style={styles.title}>
+                  {formatRoomName(sweep.roomName)}
                 </Text>
-                <Text style={styles.savedAt}>
-                  Saved {formatSweepDate(sweep.createdAt)}
+                <Text style={styles.meta}>
+                  Recorded {formatSweepDate(sweep.createdAt)} ·{' '}
+                  {formatSweepDuration(sweep.durationSeconds)}
                 </Text>
               </View>
 
               {isVideoAvailable ? (
                 <SavedMemoryVideo uri={sweep.videoUri} />
               ) : (
-                <View
-                  accessibilityLiveRegion="polite"
-                  style={styles.videoUnavailable}
-                >
-                  <View style={styles.unavailableIcon}>
-                    <Text style={styles.unavailableIconText}>!</Text>
-                  </View>
-                  <Text style={styles.unavailableTitle}>
-                    Video file is missing
-                  </Text>
-                  <Text style={styles.unavailableCopy}>
-                    The memory record still exists, but its local video is no
-                    longer available on this device.
-                  </Text>
-                </View>
+                <VideoMessage
+                  body="The memory is still listed, but its video is no longer on this phone."
+                  title="Video missing"
+                />
               )}
-
-              <View style={styles.detailsCard}>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>DURATION</Text>
-                  <Text style={styles.detailValue}>
-                    {formatSweepDuration(sweep.durationSeconds)}
-                  </Text>
-                </View>
-                <View style={styles.detailDivider} />
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>STATUS</Text>
-                  <View
-                    style={[
-                      styles.statusPill,
-                      sweep.status === 'failed' && styles.statusPillFailed,
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.statusDot,
-                        sweep.status === 'failed' && styles.statusDotFailed,
-                      ]}
-                    />
-                    <Text
-                      style={[
-                        styles.statusText,
-                        sweep.status === 'failed' && styles.statusTextFailed,
-                      ]}
-                    >
-                      {getSweepStatusLabel(sweep.status)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
 
               <ProcessingSummary
                 errorMessage={processingError}
@@ -403,19 +365,9 @@ export function SavedMemoryScreen() {
                 status={sweep.status}
               />
 
-              <Text style={styles.searchNotice}>
-                Future object search will report where an item was last seen in
-                this saved sweep. It is not connected yet.
-              </Text>
-
               <View style={styles.deleteSection}>
-                <Text style={styles.deleteTitle}>Remove saved memory</Text>
-                <Text style={styles.deleteCopy}>
-                  This deletes both the database record and video from this
-                  device.
-                </Text>
                 <PrimaryButton
-                  accessibilityHint="Ask for confirmation before permanently deleting this saved memory and video"
+                  accessibilityHint="Asks before permanently deleting this memory and its video"
                   disabled={isDeleting}
                   label={isDeleting ? 'Deleting…' : 'Delete memory'}
                   onPress={() => confirmDelete(sweep)}
@@ -439,226 +391,97 @@ export function SavedMemoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  contentWidth: {
-    alignSelf: 'center',
-    maxWidth: layout.maxContentWidth,
-    width: '100%',
-  },
-  detailDivider: {
-    backgroundColor: colors.line,
-    height: 1,
-    marginVertical: spacing.md,
-  },
-  detailLabel: {
-    color: colors.muted,
-    fontSize: 10,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.2,
-  },
-  detailRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  detailValue: {
-    color: colors.ink,
-    fontSize: typography.size.body,
-    fontWeight: typography.weight.semibold,
-  },
-  deleteCopy: {
-    color: colors.muted,
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
-    marginBottom: spacing.md,
-    marginTop: spacing.xs,
-  },
-  deleteError: {
-    color: colors.danger,
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
-    marginTop: spacing.md,
-    textAlign: 'center',
-  },
-  deleteSection: {
-    borderColor: colors.line,
-    borderTopWidth: 1,
-    marginTop: spacing.xl,
-    paddingTop: spacing.lg,
-  },
-  deleteTitle: {
-    color: colors.ink,
-    fontSize: typography.size.body,
-    fontWeight: typography.weight.semibold,
-  },
-  detailsCard: {
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    marginTop: spacing.md,
-    padding: spacing.lg,
-  },
-  eyebrow: {
-    color: colors.sage,
-    fontSize: typography.size.caption,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.5,
-    lineHeight: typography.lineHeight.caption,
-  },
-  header: {
-    marginBottom: spacing.lg,
-    marginTop: spacing.xl,
-  },
-  loadingState: {
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
-    minHeight: 420,
-  },
-  loadingText: {
-    color: colors.muted,
-    fontSize: typography.size.body,
-    marginTop: spacing.md,
-  },
-  notFoundCopy: {
-    color: colors.muted,
+  centerCopy: {
+    color: colors.textSecondary,
     fontSize: typography.size.body,
     lineHeight: typography.lineHeight.body,
     marginTop: spacing.sm,
     maxWidth: 420,
     textAlign: 'center',
   },
-  notFoundEyebrow: {
-    color: colors.sage,
-    fontSize: typography.size.caption,
-    fontWeight: typography.weight.bold,
-    letterSpacing: 1.5,
-  },
-  notFoundState: {
+  centerState: {
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
     minHeight: 420,
   },
-  notFoundTitle: {
-    color: colors.ink,
-    fontSize: typography.size.heading,
+  centerTitle: {
+    color: colors.text,
+    fontSize: typography.size.title,
     fontWeight: typography.weight.semibold,
-    marginTop: spacing.sm,
+    lineHeight: typography.lineHeight.title,
   },
-  savedAt: {
-    color: colors.muted,
-    fontSize: typography.size.body,
-    lineHeight: typography.lineHeight.body,
+  contentWidth: {
+    alignSelf: 'center',
+    maxWidth: layout.maxContentWidth,
+    width: '100%',
+  },
+  deleteError: {
+    color: colors.error,
+    fontSize: typography.size.small,
+    lineHeight: typography.lineHeight.small,
+    marginTop: spacing.md,
+  },
+  deleteSection: {
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: spacing.xl,
+    paddingTop: spacing.lg,
+  },
+  header: {
+    marginBottom: spacing.md,
     marginTop: spacing.xs,
+  },
+  meta: {
+    color: colors.textSecondary,
+    fontSize: typography.size.small,
+    lineHeight: typography.lineHeight.small,
+    marginTop: spacing.xxs,
   },
   scrollContent: {
     flexGrow: 1,
     paddingBottom: spacing.xl,
-    paddingTop: spacing.xs,
-  },
-  searchNotice: {
-    color: colors.muted,
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
-    marginTop: spacing.lg,
-    textAlign: 'center',
-  },
-  statusDot: {
-    backgroundColor: colors.sage,
-    borderRadius: radii.pill,
-    height: 6,
-    marginRight: 6,
-    width: 6,
-  },
-  statusDotFailed: {
-    backgroundColor: colors.danger,
-  },
-  statusPill: {
-    alignItems: 'center',
-    backgroundColor: colors.sageSoft,
-    borderRadius: radii.pill,
-    flexDirection: 'row',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  statusPillFailed: {
-    backgroundColor: colors.dangerSoft,
-  },
-  statusText: {
-    color: colors.sageDark,
-    fontSize: typography.size.caption,
-    fontWeight: typography.weight.semibold,
-  },
-  statusTextFailed: {
-    color: colors.danger,
+    paddingTop: spacing.xxs,
   },
   title: {
-    color: colors.ink,
+    color: colors.text,
     fontSize: typography.size.heading,
     fontWeight: typography.weight.semibold,
-    letterSpacing: -1,
     lineHeight: typography.lineHeight.heading,
-    marginTop: spacing.xs,
-  },
-  unavailableCopy: {
-    color: colors.faint,
-    fontSize: typography.size.bodySmall,
-    lineHeight: typography.lineHeight.bodySmall,
-    marginTop: spacing.xs,
-    maxWidth: 340,
-    textAlign: 'center',
-  },
-  unavailableIcon: {
-    alignItems: 'center',
-    borderColor: colors.faint,
-    borderRadius: radii.pill,
-    borderWidth: 1.5,
-    height: 42,
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-    width: 42,
-  },
-  unavailableIconText: {
-    color: colors.faint,
-    fontSize: typography.size.bodyLarge,
-    fontWeight: typography.weight.bold,
-  },
-  unavailableTitle: {
-    color: colors.white,
-    fontSize: typography.size.bodyLarge,
-    fontWeight: typography.weight.semibold,
   },
   video: {
     flex: 1,
   },
   videoFrame: {
-    aspectRatio: 3 / 4,
+    aspectRatio: 4 / 5,
     backgroundColor: colors.camera,
-    borderRadius: radii.lg,
-    maxHeight: 560,
+    borderRadius: radii.md,
+    maxHeight: 460,
     overflow: 'hidden',
     width: '100%',
   },
   videoLoading: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
-    backgroundColor: 'rgba(16,20,17,0.82)',
     justifyContent: 'center',
   },
-  videoLoadingText: {
-    color: colors.white,
-    fontSize: typography.size.bodySmall,
-    marginTop: spacing.sm,
+  videoMessage: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.md,
   },
-  videoUnavailable: {
-    alignItems: 'center',
-    aspectRatio: 3 / 4,
-    backgroundColor: colors.cameraSoft,
-    borderRadius: radii.lg,
-    justifyContent: 'center',
-    maxHeight: 560,
-    padding: spacing.lg,
-    width: '100%',
+  videoMessageBody: {
+    color: colors.textSecondary,
+    fontSize: typography.size.small,
+    lineHeight: typography.lineHeight.small,
+    marginTop: spacing.xs,
+  },
+  videoMessageTitle: {
+    color: colors.text,
+    fontSize: typography.size.body,
+    fontWeight: typography.weight.semibold,
+    lineHeight: typography.lineHeight.body,
   },
 });
