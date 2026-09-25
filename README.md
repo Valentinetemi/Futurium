@@ -67,8 +67,17 @@ EXPO_PUBLIC_API_BASE_URL=http://192.168.1.100:8000
 ```
 
 The iPhone and Mac must be on the same network, and macOS must allow incoming
-connections to Python. Restart Metro after changing `.env`. The app has no API
-URL fallback, so it never silently routes a physical phone to localhost.
+connections to Python. Expo public variables are inlined into the JavaScript
+bundle, so Fast Refresh is not enough after changing `.env`. Stop the existing
+Metro process and restart it with a clean transform cache:
+
+```bash
+npm run start:clean
+```
+
+In development, the Metro console prints the effective public API base URL when
+the app starts. The app has no API URL fallback, so it never silently routes a
+physical phone to localhost.
 
 The processing API has no authentication and is intended only for trusted local
 development. Do not expose it to the public internet.
