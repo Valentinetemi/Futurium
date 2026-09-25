@@ -123,8 +123,8 @@ export function HomeScreen() {
           />
 
           <Pressable
-            accessibilityHint="Search is not available yet. Opens a short explanation."
-            accessibilityLabel="Find something. Coming soon."
+            accessibilityHint="Searches memories that are ready"
+            accessibilityLabel="Find something"
             accessibilityRole="button"
             onPress={() => router.push('/find')}
             style={({ pressed }) => [
@@ -142,7 +142,7 @@ export function HomeScreen() {
               maxFontSizeMultiplier={typography.maxScale.control}
               style={styles.findActionNote}
             >
-              Coming soon
+              Search ready memories
             </Text>
           </Pressable>
 

@@ -20,6 +20,7 @@ export type ProcessingFetch = (
   input: string | URL,
   init?: {
     body?: BodyInit | null;
+    headers?: Record<string, string>;
     method?: string;
   },
 ) => Promise<ResponseLike>;
@@ -134,7 +135,7 @@ function createUploadDiagnostic(
   };
 }
 
-async function readApiError(response: ResponseLike) {
+export async function readApiError(response: ResponseLike) {
   try {
     const payload = (await response.json()) as ApiErrorPayload;
     if (
