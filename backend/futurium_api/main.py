@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import shutil
+import threading
+import time
 from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.exceptions import HTTPException as StarletteHttpException
@@ -34,6 +37,10 @@ ALLOWED_MEDIA_TYPES = {
 UPLOAD_CHUNK_BYTES = 1024 * 1024
 
 logger = logging.getLogger("futurium_api")
+
+
+def elapsed_milliseconds(started_at: float) -> float:
+    return round((time.perf_counter() - started_at) * 1000, 2)
 
 
 def error_response(status_code: int, code: str, message: str) -> JSONResponse:
@@ -115,72 +122,90 @@ def process_job(
     source_path: Path,
     store: JobStore,
     processor: FrameProcessor,
+    queued_at: float,
 ) -> None:
-    manifest = store.get(job_id)
-    if manifest is None:
-        source_path.unlink(missing_ok=True)
-        return
-
-    logger.info(
-        "sweep_processing_started",
-        extra={"job_id": job_id, "sweep_id": manifest.sweep_id},
-    )
+    processing_started_at = time.perf_counter()
+    manifest: ProcessingManifest | None = None
     try:
-        duration, sampled, blur_count, duplicate_count, frames = processor.process(
-            job_id, source_path, store.job_dir(job_id)
-        )
-        manifest.status = ProcessingStatus.READY
-        manifest.duration = duration
-        manifest.total_frames_sampled = sampled
-        manifest.retained_frame_count = len(frames)
-        manifest.rejected_blur_count = blur_count
-        manifest.rejected_duplicate_count = duplicate_count
-        manifest.frames = frames
-        manifest.error = None
-        store.save(manifest)
+        manifest = store.get(job_id)
+        if manifest is None:
+            return
+
         logger.info(
-            "sweep_processing_completed",
+            "sweep_processing_started",
             extra={
                 "job_id": job_id,
                 "sweep_id": manifest.sweep_id,
-                "status": manifest.status.value,
-                "total_frames_sampled": sampled,
-                "retained_frame_count": len(frames),
-                "rejected_blur_count": blur_count,
-                "rejected_duplicate_count": duplicate_count,
+                "queue_delay_ms": elapsed_milliseconds(queued_at),
+                "worker_thread": threading.current_thread().name,
             },
         )
-    except ProcessingError as error:
-        clear_processed_images(store.job_dir(job_id))
-        manifest.status = ProcessingStatus.FAILED
-        manifest.error = JobError(code=error.code, message=error.message)
-        store.save(manifest)
-        logger.warning(
-            "sweep_processing_failed",
-            extra={
-                "job_id": job_id,
-                "sweep_id": manifest.sweep_id,
-                "status": manifest.status.value,
-            },
-        )
-    except Exception:
-        clear_processed_images(store.job_dir(job_id))
-        manifest.status = ProcessingStatus.FAILED
-        manifest.error = JobError(
-            code="processing_failed",
-            message="The video could not be processed.",
-        )
-        store.save(manifest)
-        logger.error(
-            "sweep_processing_failed_unexpectedly",
-            extra={
-                "job_id": job_id,
-                "sweep_id": manifest.sweep_id,
-                "status": manifest.status.value,
-            },
-        )
+        try:
+            duration, sampled, blur_count, duplicate_count, frames = processor.process(
+                job_id, source_path, store.job_dir(job_id)
+            )
+            manifest.status = ProcessingStatus.READY
+            manifest.duration = duration
+            manifest.total_frames_sampled = sampled
+            manifest.retained_frame_count = len(frames)
+            manifest.rejected_blur_count = blur_count
+            manifest.rejected_duplicate_count = duplicate_count
+            manifest.frames = frames
+            manifest.error = None
+            store.save(manifest)
+            logger.info(
+                "sweep_processing_completed",
+                extra={
+                    "job_id": job_id,
+                    "sweep_id": manifest.sweep_id,
+                    "status": manifest.status.value,
+                    "total_frames_sampled": sampled,
+                    "retained_frame_count": len(frames),
+                    "rejected_blur_count": blur_count,
+                    "rejected_duplicate_count": duplicate_count,
+                },
+            )
+        except ProcessingError as error:
+            clear_processed_images(store.job_dir(job_id))
+            manifest.status = ProcessingStatus.FAILED
+            manifest.error = JobError(code=error.code, message=error.message)
+            store.save(manifest)
+            logger.warning(
+                "sweep_processing_failed",
+                extra={
+                    "job_id": job_id,
+                    "sweep_id": manifest.sweep_id,
+                    "status": manifest.status.value,
+                },
+            )
+        except Exception:
+            clear_processed_images(store.job_dir(job_id))
+            manifest.status = ProcessingStatus.FAILED
+            manifest.error = JobError(
+                code="processing_failed",
+                message="The video could not be processed.",
+            )
+            store.save(manifest)
+            logger.error(
+                "sweep_processing_failed_unexpectedly",
+                extra={
+                    "job_id": job_id,
+                    "sweep_id": manifest.sweep_id,
+                    "status": manifest.status.value,
+                },
+            )
     finally:
         source_path.unlink(missing_ok=True)
+        logger.info(
+            "sweep_processing_finished",
+            extra={
+                "job_id": job_id,
+                "sweep_id": manifest.sweep_id if manifest is not None else None,
+                "status": manifest.status.value if manifest is not None else "unknown",
+                "elapsed_ms": elapsed_milliseconds(processing_started_at),
+                "worker_thread": threading.current_thread().name,
+            },
+        )
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -189,11 +214,39 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     store = JobStore(active_settings.data_dir)
     recover_interrupted_jobs(store)
     processor = FrameProcessor(active_settings)
+    processing_tasks: set[asyncio.Task[None]] = set()
     app = FastAPI(
         title="Futurium Processing API",
         version="0.1.0",
         description="Extracts useful frames from saved room sweeps.",
     )
+
+    def processing_task_finished(task: asyncio.Task[None]) -> None:
+        processing_tasks.discard(task)
+        if task.cancelled():
+            logger.warning("sweep_processing_task_cancelled")
+            return
+        error = task.exception()
+        if error is not None:
+            logger.error(
+                "sweep_processing_task_failed",
+                extra={"error_type": type(error).__name__},
+            )
+
+    def start_processing_task(job_id: str, source_path: Path, queued_at: float) -> None:
+        task = asyncio.create_task(
+            asyncio.to_thread(
+                process_job,
+                job_id,
+                source_path,
+                store,
+                processor,
+                queued_at,
+            ),
+            name=f"process-sweep-{job_id}",
+        )
+        processing_tasks.add(task)
+        task.add_done_callback(processing_task_finished)
 
     @app.exception_handler(ApiError)
     async def handle_api_error(_request: Request, error: ApiError) -> JSONResponse:
@@ -256,10 +309,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         },
     )
     async def upload_sweep(
-        background_tasks: BackgroundTasks,
         sweep_id: Annotated[int, Form(gt=0)],
         video: Annotated[UploadFile, File()],
     ) -> ProcessingManifest:
+        request_started_at = time.perf_counter()
         if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
             raise ApiError(
                 503,
@@ -285,6 +338,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         job_dir = store.create_job(manifest)
         source_path = job_dir / "source.upload"
 
+        upload_started_at = time.perf_counter()
         try:
             upload_bytes = await save_bounded_upload(
                 video, source_path, active_settings.max_upload_bytes
@@ -294,31 +348,60 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise
 
         logger.info(
-            "sweep_upload_accepted",
-            extra={"job_id": job_id, "sweep_id": sweep_id},
-        )
-        logger.info(
-            "sweep_upload_size_recorded",
+            "sweep_upload_completed",
             extra={
                 "job_id": job_id,
                 "sweep_id": sweep_id,
                 "upload_bytes": upload_bytes,
+                "elapsed_ms": elapsed_milliseconds(upload_started_at),
             },
         )
-        background_tasks.add_task(process_job, job_id, source_path, store, processor)
+        queued_at = time.perf_counter()
+        start_processing_task(job_id, source_path, queued_at)
+        logger.info(
+            "sweep_202_response_ready",
+            extra={
+                "job_id": job_id,
+                "sweep_id": sweep_id,
+                "status": manifest.status.value,
+                "status_code": 202,
+                "elapsed_ms": elapsed_milliseconds(request_started_at),
+            },
+        )
         return manifest
 
     @app.get("/sweeps/{job_id}", response_model=ProcessingManifest)
     async def get_sweep(job_id: str) -> ProcessingManifest:
+        poll_started_at = time.perf_counter()
+        normalized: str | None = None
+        manifest: ProcessingManifest | None = None
+        status_code = 500
         try:
-            normalized = normalize_job_id(job_id)
-        except ValueError as error:
-            raise ApiError(404, "job_not_found", "Processing job not found.") from error
+            try:
+                normalized = normalize_job_id(job_id)
+            except ValueError as error:
+                status_code = 404
+                raise ApiError(
+                    404, "job_not_found", "Processing job not found."
+                ) from error
 
-        manifest = store.get(normalized)
-        if manifest is None:
-            raise ApiError(404, "job_not_found", "Processing job not found.")
-        return manifest
+            manifest = store.get(normalized)
+            if manifest is None:
+                status_code = 404
+                raise ApiError(404, "job_not_found", "Processing job not found.")
+            status_code = 200
+            return manifest
+        finally:
+            logger.info(
+                "sweep_poll_completed",
+                extra={
+                    "job_id": normalized,
+                    "sweep_id": manifest.sweep_id if manifest is not None else None,
+                    "status": (manifest.status.value if manifest is not None else None),
+                    "status_code": status_code,
+                    "elapsed_ms": elapsed_milliseconds(poll_started_at),
+                },
+            )
 
     @app.get("/sweeps/{job_id}/thumbnails/{frame_id}.jpg")
     async def get_thumbnail(job_id: str, frame_id: str) -> FileResponse:

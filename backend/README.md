@@ -24,7 +24,8 @@ There is no authentication in this prototype; do not expose it publicly.
 
 - `GET /health` — checks whether FFmpeg and FFprobe are available
 - `POST /sweeps` — accepts multipart fields `sweep_id` and `video`, then returns
-  HTTP 202 with the generated job manifest
+  HTTP 202 with the generated job manifest immediately after the bounded upload
+  is saved
 - `GET /sweeps/{job_id}` — returns the current processing manifest
 - `GET /sweeps/{job_id}/thumbnails/{frame_id}.jpg` — serves retained thumbnails
 
@@ -68,6 +69,14 @@ The camel-cased response includes:
 Client filenames are never used for storage. Job and frame identifiers are
 validated before paths are resolved. Uploads are streamed in bounded chunks and
 limited to 100 MiB by default.
+
+After the upload completes, processing is detached from the POST response and
+run in a worker thread with `asyncio.to_thread`. FFmpeg, FFprobe, and OpenCV do
+not run on FastAPI's event-loop thread, so `GET /sweeps/{job_id}` can continue to
+report `processing` while frame extraction is active. Structured JSON timing
+logs cover upload completion, the point at which the 202 response is ready,
+worker start and finish, and every status poll. Logs contain job metadata and
+timings but never upload filenames or private filesystem paths.
 
 ## Frame selection
 

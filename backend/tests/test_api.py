@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+import time
 from pathlib import Path
 from uuid import UUID
 
@@ -9,6 +11,21 @@ from futurium_api.config import Settings
 from futurium_api.job_store import JobStore
 from futurium_api.main import create_app
 from futurium_api.models import ProcessingManifest, ProcessingStatus
+from futurium_api.processing import FrameProcessor
+
+
+def wait_for_terminal_manifest(
+    client: TestClient, job_id: str, timeout_seconds: float = 10
+) -> dict[str, object]:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        response = client.get(f"/sweeps/{job_id}")
+        assert response.status_code == 200
+        manifest = response.json()
+        if manifest["status"] in {"ready", "failed"}:
+            return manifest
+        time.sleep(0.02)
+    raise AssertionError("Processing did not reach a terminal state in time")
 
 
 def test_health_reports_processing_dependencies(tmp_path: Path) -> None:
@@ -41,9 +58,7 @@ def test_upload_processes_video_and_serves_manifest_and_thumbnail(
     job_id = response.json()["jobId"]
     UUID(job_id)
 
-    manifest_response = client.get(f"/sweeps/{job_id}")
-    assert manifest_response.status_code == 200
-    manifest = manifest_response.json()
+    manifest = wait_for_terminal_manifest(client, job_id)
     assert manifest["sweepId"] == 42
     assert manifest["status"] == "ready"
     assert manifest["duration"] == 3.0
@@ -71,10 +86,62 @@ def test_failed_processing_deletes_uploaded_source(tmp_path: Path) -> None:
 
     assert response.status_code == 202
     job_id = response.json()["jobId"]
-    manifest = client.get(f"/sweeps/{job_id}").json()
+    manifest = wait_for_terminal_manifest(client, job_id)
     assert manifest["status"] == "failed"
     assert manifest["error"]["code"] == "video_probe_failed"
     assert not (data_dir / job_id / "source.upload").exists()
+
+
+def test_upload_returns_immediately_and_polling_works_during_processing(
+    tmp_path: Path, monkeypatch
+) -> None:
+    processing_started = threading.Event()
+    release_processing = threading.Event()
+
+    def slow_process(
+        _processor: FrameProcessor,
+        _job_id: str,
+        _source_path: Path,
+        _job_dir: Path,
+    ) -> tuple[float, int, int, int, list[object]]:
+        processing_started.set()
+        if not release_processing.wait(timeout=3):
+            raise AssertionError("Test processor was not released")
+        return 1.0, 0, 0, 0, []
+
+    monkeypatch.setattr(FrameProcessor, "process", slow_process)
+    release_fallback = threading.Timer(2, release_processing.set)
+    release_fallback.start()
+
+    try:
+        with TestClient(create_app(Settings(data_dir=tmp_path / "jobs"))) as client:
+            request_started = time.monotonic()
+            response = client.post(
+                "/sweeps",
+                data={"sweep_id": "99"},
+                files={"video": ("sweep.mp4", b"test video", "video/mp4")},
+            )
+            request_elapsed = time.monotonic() - request_started
+
+            assert response.status_code == 202
+            assert request_elapsed < 1
+            assert response.json()["status"] == "processing"
+            assert processing_started.wait(timeout=1)
+
+            poll_started = time.monotonic()
+            poll_response = client.get(f"/sweeps/{response.json()['jobId']}")
+            poll_elapsed = time.monotonic() - poll_started
+
+            assert poll_response.status_code == 200
+            assert poll_response.json()["status"] == "processing"
+            assert poll_elapsed < 1
+
+            release_processing.set()
+            terminal = wait_for_terminal_manifest(client, response.json()["jobId"])
+            assert terminal["status"] == "ready"
+    finally:
+        release_processing.set()
+        release_fallback.cancel()
 
 
 def test_rejects_unsupported_media_before_creating_job(tmp_path: Path) -> None:

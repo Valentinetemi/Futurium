@@ -15,6 +15,11 @@ class JsonFormatter(logging.Formatter):
         "retained_frame_count",
         "rejected_blur_count",
         "rejected_duplicate_count",
+        "elapsed_ms",
+        "queue_delay_ms",
+        "status_code",
+        "worker_thread",
+        "error_type",
     )
 
     def format(self, record: logging.LogRecord) -> str:
