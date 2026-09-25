@@ -20,7 +20,26 @@ function logUploadDiagnostic(diagnostic: UploadDiagnostic) {
   console.warn('[Futurium] Sweep upload failed', diagnostic);
 }
 
-export function uploadSweepForProcessing(sweepId: number, videoUri: string) {
+async function logProcessingApiHealth() {
+  try {
+    const response = await fetch(`${getProcessingApiBaseUrl()}/health`);
+    console.log(await response.text());
+  } catch (error) {
+    console.warn('[Futurium] API health check failed', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+    });
+  }
+}
+
+export async function uploadSweepForProcessing(
+  sweepId: number,
+  videoUri: string,
+) {
+  if (__DEV__) {
+    await logProcessingApiHealth();
+  }
+
   return uploadSweepWithDependencies(sweepId, videoUri, {
     createFile: (uri) => new File(uri),
     fetch,
