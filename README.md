@@ -2,11 +2,12 @@
 
 Futurium is a cross-platform visual memory assistant with a simple promise:
 **Sweep now. Ask later.** Record one short video of a room, keep it as a saved
-memory, and prepare useful frames for a future “last seen” search.
+memory, prepare useful frames, and later ask where something was last seen.
 
-This version includes durable on-device memories and a local FastAPI frame
-processing service. Semantic search and object retrieval are intentionally not
-implemented yet, so the app never claims that a saved memory is searchable.
+This version includes durable on-device memories, a local FastAPI processing
+service, OpenCLIP text-to-frame retrieval, and optional Gemini voice-query
+transcription. Search results are visual similarity candidates—not proof that
+an object was found or that it is currently in a location.
 
 ## Stack
 
@@ -15,6 +16,9 @@ implemented yet, so the app never claims that a saved memory is searchable.
 - `expo-video` for preview and saved-memory playback
 - `expo-sqlite` for the durable local memory and processing index
 - FastAPI, FFmpeg and OpenCV for local upload and frame preparation
+- OpenCLIP `ViT-B-32` with `laion2b_s34b_b79k` weights for frame and text
+  embeddings
+- Gemini `gemini-3.5-transcribe` for optional short voice transcription
 - RevenueCat React Native SDK with Expo Go Preview API Mode support
 - iOS and Android support
 
@@ -52,6 +56,17 @@ cp .env.example .env
 uvicorn futurium_api.main:app --host 0.0.0.0 --port 8000 --reload --env-file .env
 ```
 
+Set a server-only Gemini key in `backend/.env` to enable voice transcription:
+
+```dotenv
+GEMINI_API_KEY=replace_with_your_gemini_api_key
+```
+
+Never use an `EXPO_PUBLIC_` variable for the Gemini key. The first real sweep
+processed after setup downloads the configured OpenCLIP weights, so it is
+slower and needs an internet connection. Later processing reuses the model in
+the same server process.
+
 Confirm it is ready from the Mac:
 
 ```bash
@@ -79,8 +94,9 @@ In development, the Metro console prints the effective public API base URL when
 the app starts. The app has no API URL fallback, so it never silently routes a
 physical phone to localhost.
 
-The processing API has no authentication and is intended only for trusted local
-development. Do not expose it to the public internet.
+The processing API has no user authentication and is intended only for trusted
+local development. If a tunnel is needed for HTTPS device testing, keep its URL
+private and stop the tunnel afterward.
 
 See [backend/README.md](backend/README.md) for endpoints, configuration,
 processing thresholds and API examples.
@@ -90,10 +106,34 @@ processing thresholds and API examples.
 Uploading is always a separate, confirmed action on a saved-memory detail
 screen. The configured server receives a temporary copy of the room video. It
 deletes that uploaded source after processing succeeds or fails and retains
-only the processed frames needed for later search development. The original
+only the processed frames needed for semantic search. The original
 saved video remains in the app's private document directory for replay.
 
 This prototype does not claim end-to-end encryption or medical compliance.
+
+Voice input is optional. The app records at most 12 seconds and uploads it only
+after the user chooses voice input. The backend sends the temporary audio to
+Gemini for transcription, requests deletion of the Gemini Files API copy, and
+always removes its own temporary upload. The transcript is placed into the
+normal search field for review or editing; it does not trigger a search by
+itself.
+
+## Semantic search behavior and limitations
+
+- Newly processed retained frames receive normalized OpenCLIP embeddings.
+- Each job stores one compressed `embeddings.npz` containing schema version,
+  model identifier, stable frame IDs, and a float32 embedding matrix.
+- A normalized text embedding is compared with every eligible frame by cosine
+  similarity (a dot product between normalized vectors).
+- Only local sweeps marked `ready` are included. The API returns at most three
+  ranked candidates.
+- The top result is confident only when its similarity is at least the
+  configurable threshold (`0.23` by default). Lower scores are labeled as
+  closest visual candidates rather than a found object.
+- Memories processed before embedding support do not have an index. Upload them
+  for processing again if they need to become searchable.
+- This is whole-frame retrieval. There are no bounding boxes, object counts,
+  location descriptions, Grounding DINO, or language-model reasoning.
 
 ## RevenueCat preview setup
 
@@ -127,21 +167,42 @@ cd backend
 ```
 
 The frontend tests initialize clean and version-one in-memory SQLite databases,
-then exercise migration, repository and API mapping behavior. Backend tests
-generate a small MP4 at runtime, so no video fixture is committed.
+then exercise migration, repository, multipart upload, search response, and
+transcription response behavior. Backend tests generate small MP4 files at
+runtime and inject fake embedding/transcription providers, so no video fixture
+is committed and tests never download model weights or call Gemini.
+
+## Physical-phone test flow
+
+1. Start FastAPI with `GEMINI_API_KEY` configured and confirm `/health` from the
+   phone browser.
+2. Put the phone-reachable HTTPS or Mac LAN URL in
+   `EXPO_PUBLIC_API_BASE_URL`, then stop Metro and run `npm run start:clean`.
+3. In Expo Go, record and save a sweep containing several distinct objects.
+4. Open the saved memory, approve the upload notice, choose **Upload for
+   processing**, and wait for **Ready**. The first run may pause while OpenCLIP
+   weights download on the Mac.
+5. Open **Find something**, type a query such as “Where are my glasses?”, and
+   confirm the strongest frame, room, saved time, frame timestamp, score, and no
+   more than two alternatives appear.
+6. Tap **Voice**, approve microphone permission, speak a query, and either stop
+   early or allow the 12-second limit. Confirm the transcription appears in the
+   same editable field. Edit it if needed, then tap **Search memories**.
+7. Cancel a second recording and confirm no search runs. Deny microphone access
+   once and confirm typed search remains usable.
 
 ## Routes
 
 - `/` — home and focus-refreshed recent memories
 - `/capture` — permissions, recording, preview, room naming and durable save
 - `/memories/[id]` — replay, upload/processing status, retained frames and delete
-- `/find` — visual retrieval placeholder
+- `/find` — typed semantic search and optional editable voice transcription
 - `/plus` — Free/Plus comparison and RevenueCat preview status
 
 Deleting a saved memory removes its SQLite row and local video. Missing or
 damaged video files are reported without crashing. Upload failures are retryable
-on the same local sweep. Future retrieval will describe where an object was
-**last seen** in a recorded sweep; it will not claim the object is currently
+on the same local sweep. Retrieval describes where an object may have been
+**last seen** in a recorded sweep; it does not claim the object is currently
 there.
 
 ## Project layout
@@ -153,7 +214,7 @@ src/app/                Expo Router routes and root layout
 src/components/         Reusable interface building blocks
 src/constants/          Design tokens
 src/database/           SQLite schema, mappings, repository and tests
-src/lib/                Processing API client and RevenueCat setup
+src/lib/                Processing, search, transcription and RevenueCat clients
 src/screens/            Screen-level presentation and behavior
 src/services/           Coordinated local file and database operations
 src/types/              Shared typed processing contracts
