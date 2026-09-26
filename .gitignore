@@ -3,14 +3,14 @@ node_modules/
 
 # Expo and generated builds
 .expo/
+.expo-shared/
 dist/
 web-build/
+exports/
+*-export/
 expo-env.d.ts
 /ios/
 /android/
-
-# Temporary local scaffold
-.futurium-scaffold/
 
 # Native credentials and signing files
 .kotlin/
@@ -37,10 +37,38 @@ yarn-error.log*
 *.tsbuildinfo
 .DS_Store
 
+# Test and coverage output
+coverage/
+htmlcov/
+.coverage
+coverage.xml
+*.lcov
+.nyc_output/
+
 # Python backend runtime files
 backend/.venv/
 backend/data/
-backend/**/__pycache__/
-backend/.pytest_cache/
-backend/.ruff_cache/
+backend/uploads/
+backend/frames/
+backend/thumbnails/
+backend/tmp/
+backend/.cache/
 backend/*.egg-info/
+**/__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.py[cod]
+
+# Runtime databases, embedding indexes, and downloaded model weights
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.npz
+*.pt
+*.pth
+*.onnx
+*.safetensors
+.cache/
+.huggingface/

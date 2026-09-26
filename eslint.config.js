@@ -2,6 +2,6 @@ const { defineConfig, globalIgnores } = require('eslint/config');
 const expoConfig = require('eslint-config-expo/flat');
 
 module.exports = defineConfig([
-  globalIgnores(['.expo/*', 'dist/*', '.futurium-scaffold/*']),
+  globalIgnores(['.expo/*', 'dist/*', 'exports/*', 'coverage/*']),
   expoConfig,
 ]);
