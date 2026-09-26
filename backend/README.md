@@ -1,4 +1,4 @@
-# Futurium processing API
+# FoundIt processing API
 
 This local FastAPI service accepts one saved room sweep, extracts useful frames,
 indexes them for semantic text-to-frame search, and optionally transcribes a
@@ -127,8 +127,8 @@ timings but never upload filenames or private filesystem paths.
 
 The temporary uploaded source is removed in a `finally` path whether processing
 succeeds or fails. Temporary sampled frames are also deleted. Manifests,
-retained frames and thumbnails remain under `FUTURIUM_DATA_DIR` for later search
-development. On a server restart, any job left in `processing` is recovered as
+retained frames, thumbnails, and embeddings remain under `FUTURIUM_DATA_DIR`
+for semantic search. On a server restart, any job left in `processing` is recovered as
 `failed`, its temporary upload is removed, and the mobile client can retry the
 same saved memory.
 
@@ -169,6 +169,11 @@ local temporary file in a `finally` block whether transcription succeeds or
 fails. Gemini credentials stay on the backend; they are never included in the
 Expo bundle. This prototype does not claim end-to-end encryption or medical
 compliance.
+
+The `futurium_api` Python module, `futurium-api` distribution name, and
+`FUTURIUM_*` environment-variable prefix are intentionally retained for
+backward compatibility with existing development environments. They are
+internal identifiers; the product and API title are FoundIt.
 
 ## Environment variables
 
