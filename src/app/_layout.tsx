@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@/constants/theme';
 import { DATABASE_NAME, initializeDatabase } from '@/database/sweep-repository';
 import '@/lib/revenuecat';
+import { RevenueCatProvider } from '@/providers/revenuecat-provider';
 
 if (__DEV__) {
   console.info('[FoundIt] API configuration', {
@@ -16,17 +17,19 @@ if (__DEV__) {
 
 export default function RootLayout() {
   return (
-    <SQLiteProvider databaseName={DATABASE_NAME} onInit={initializeDatabase}>
-      <SafeAreaProvider>
-        <StatusBar style="auto" />
-        <Stack
-          screenOptions={{
-            animation: 'fade',
-            contentStyle: { backgroundColor: colors.background },
-            headerShown: false,
-          }}
-        />
-      </SafeAreaProvider>
-    </SQLiteProvider>
+    <RevenueCatProvider>
+      <SQLiteProvider databaseName={DATABASE_NAME} onInit={initializeDatabase}>
+        <SafeAreaProvider>
+          <StatusBar style="auto" />
+          <Stack
+            screenOptions={{
+              animation: 'fade',
+              contentStyle: { backgroundColor: colors.background },
+              headerShown: false,
+            }}
+          />
+        </SafeAreaProvider>
+      </SQLiteProvider>
+    </RevenueCatProvider>
   );
 }

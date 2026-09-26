@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   useWindowDimensions,
@@ -13,7 +13,12 @@ import { BackButton } from '@/components/back-button';
 import { PrimaryButton } from '@/components/primary-button';
 import { ScreenContainer } from '@/components/screen-container';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
-import { revenueCatMode, type RevenueCatMode } from '@/lib/revenuecat';
+import type { RevenueCatMode } from '@/lib/revenuecat';
+import {
+  type RevenueCatActionStatus,
+  type RevenueCatOfferingStatus,
+  useRevenueCat,
+} from '@/providers/revenuecat-provider';
 
 type PlanProps = {
   benefits: string[];
@@ -22,40 +27,13 @@ type PlanProps = {
   note: string;
 };
 
-const modeCopy: Record<
-  RevenueCatMode,
-  { detail: string; title: string; tone: 'attention' | 'ready' }
-> = {
-  error: {
-    detail:
-      'RevenueCat could not start. Check the public SDK key, then restart Metro.',
-    title: 'Plus preview is not set up',
-    tone: 'attention',
-  },
-  'invalid-preview-key': {
-    detail:
-      'Expo Go needs a RevenueCat Test Store key that starts with test_ or rcb_.',
-    title: 'Plus preview is not set up',
-    tone: 'attention',
-  },
-  native: {
-    detail:
-      'The purchase SDK is running. Store products still need to be set up before anything can be bought.',
-    title: 'Development build',
-    tone: 'ready',
-  },
-  preview: {
-    detail:
-      'You are using Expo Go, so this is a preview. No purchase can be made and nothing will be charged.',
-    title: 'Preview only',
-    tone: 'ready',
-  },
-  unconfigured: {
-    detail:
-      'Add a RevenueCat Test Store key to .env, then restart Metro to try the preview.',
-    title: 'Plus preview is not set up',
-    tone: 'attention',
-  },
+type NoticeInput = {
+  actionStatus: RevenueCatActionStatus;
+  isCustomerInfoLoading: boolean;
+  isExpoGoPreview: boolean;
+  isPlusActive: boolean;
+  mode: RevenueCatMode;
+  offeringStatus: RevenueCatOfferingStatus;
 };
 
 function Plan({ benefits, highlighted = false, name, note }: PlanProps) {
@@ -79,25 +57,161 @@ function Plan({ benefits, highlighted = false, name, note }: PlanProps) {
   );
 }
 
+function getNotice({
+  actionStatus,
+  isCustomerInfoLoading,
+  isExpoGoPreview,
+  isPlusActive,
+  mode,
+  offeringStatus,
+}: NoticeInput): {
+  detail: string;
+  title: string;
+  tone: 'attention' | 'ready';
+} {
+  if (isPlusActive) {
+    return {
+      detail: 'Unlimited prepared spaces are available on this device.',
+      title: 'Plus is active',
+      tone: 'ready',
+    };
+  }
+
+  if (isExpoGoPreview) {
+    return {
+      detail:
+        'Expo Go can show the paywall and live plan details, but it cannot make a genuine Test Store purchase. No Plus access is granted in Preview API Mode.',
+      title: 'Expo Go preview',
+      tone: 'attention',
+    };
+  }
+
+  if (mode === 'unconfigured' || mode === 'invalid-preview-key') {
+    return {
+      detail:
+        'Add the RevenueCat Test Store public SDK key to .env, then restart Metro.',
+      title: 'RevenueCat is not configured',
+      tone: 'attention',
+    };
+  }
+
+  if (mode === 'error') {
+    return {
+      detail:
+        'RevenueCat could not start. Check the configuration and try again.',
+      title: 'Subscriptions are unavailable',
+      tone: 'attention',
+    };
+  }
+
+  if (isCustomerInfoLoading || offeringStatus === 'loading') {
+    return {
+      detail: 'Checking the current plan and your access…',
+      title: 'Loading Plus',
+      tone: 'ready',
+    };
+  }
+
+  if (offeringStatus === 'unavailable' || offeringStatus === 'error') {
+    return {
+      detail:
+        'The current default offering does not have an available monthly package. Nothing has been charged.',
+      title: 'Monthly plan unavailable',
+      tone: 'attention',
+    };
+  }
+
+  if (actionStatus === 'cancelled') {
+    return {
+      detail: 'Nothing was charged and your plan did not change.',
+      title: 'Purchase cancelled',
+      tone: 'ready',
+    };
+  }
+
+  if (actionStatus === 'failed') {
+    return {
+      detail:
+        'The purchase could not be completed. Nothing was unlocked; please try again later.',
+      title: 'Purchase not completed',
+      tone: 'attention',
+    };
+  }
+
+  if (actionStatus === 'restore-not-found') {
+    return {
+      detail: 'No active Plus purchase was found for this store account.',
+      title: 'Nothing to restore',
+      tone: 'ready',
+    };
+  }
+
+  if (actionStatus === 'successful' || actionStatus === 'restored') {
+    return {
+      detail:
+        'RevenueCat returned the purchase, but Plus access is still being verified.',
+      title: 'Verifying Plus',
+      tone: 'ready',
+    };
+  }
+
+  return {
+    detail:
+      'Free includes one prepared space. Plus lets you prepare every space you want to remember.',
+    title: 'Monthly Plus plan',
+    tone: 'ready',
+  };
+}
+
 export function PlusScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isCompact = width < layout.compactBreakpoint;
-  const [previewMessage, setPreviewMessage] = useState<string | null>(null);
-  const currentModeCopy = modeCopy[revenueCatMode];
-
-  function previewPlus() {
-    if (revenueCatMode === 'preview') {
-      setPreviewMessage(
-        'Preview finished. No purchase was made and nothing was charged.',
-      );
-      return;
-    }
-
-    setPreviewMessage(
-      'This shows how Plus will look. Set up Preview API Mode to try it in Expo Go.',
-    );
-  }
+  const {
+    actionStatus,
+    currentOfferingIdentifier,
+    currentOfferingLoaded,
+    isConfigured,
+    isCustomerInfoLoading,
+    isExpoGoPreview,
+    isPlusActive,
+    mode,
+    monthlyPrice,
+    offeringStatus,
+    purchasePlus,
+    reload,
+    restorePurchases,
+  } = useRevenueCat();
+  const notice = getNotice({
+    actionStatus,
+    isCustomerInfoLoading,
+    isExpoGoPreview,
+    isPlusActive,
+    mode,
+    offeringStatus,
+  });
+  const isPurchasing = actionStatus === 'purchase-in-progress';
+  const isRestoring = actionStatus === 'restore-in-progress';
+  const isBusy = isPurchasing || isRestoring;
+  const isLoading = isCustomerInfoLoading || offeringStatus === 'loading';
+  const canPurchase =
+    isConfigured &&
+    !isExpoGoPreview &&
+    !isPlusActive &&
+    Boolean(monthlyPrice) &&
+    offeringStatus === 'available' &&
+    !isBusy;
+  const purchaseLabel = isPlusActive
+    ? 'Plus is active'
+    : isExpoGoPreview
+      ? 'Development build required'
+      : isPurchasing
+        ? 'Completing purchase…'
+        : isLoading
+          ? 'Loading monthly plan…'
+          : monthlyPrice
+            ? `Get Plus · ${monthlyPrice} monthly`
+            : 'Monthly plan unavailable';
 
   return (
     <ScreenContainer>
@@ -129,44 +243,91 @@ export function PlusScreen() {
           </View>
 
           <Plan
-            benefits={['One saved room', 'Seven days of memories']}
+            benefits={[
+              'One prepared space',
+              'Search memories already prepared',
+            ]}
             name="Free"
-            note="What you have now"
+            note="Included"
           />
           <Plan
-            benefits={['Every room you want to save', 'Memories kept longer']}
+            benefits={[
+              'Unlimited prepared spaces',
+              'Search every prepared memory',
+            ]}
             highlighted
             name="Plus"
-            note="Coming later"
+            note={monthlyPrice ? `${monthlyPrice} monthly` : 'Monthly plan'}
           />
 
           <View
             accessibilityLiveRegion="polite"
             style={[
               styles.notice,
-              currentModeCopy.tone === 'attention' && styles.noticeAttention,
+              notice.tone === 'attention' && styles.noticeAttention,
             ]}
           >
-            <Text style={styles.noticeTitle}>{currentModeCopy.title}</Text>
-            <Text style={styles.noticeBody}>{currentModeCopy.detail}</Text>
+            <View style={styles.noticeHeading}>
+              {isLoading ? (
+                <ActivityIndicator color={colors.primary} size="small" />
+              ) : null}
+              <Text style={styles.noticeTitle}>{notice.title}</Text>
+            </View>
+            <Text style={styles.noticeBody}>{notice.detail}</Text>
           </View>
 
           <PrimaryButton
-            accessibilityHint="Shows the Plus preview. No purchase is made."
-            label="Try the Plus preview"
-            onPress={previewPlus}
+            accessibilityHint="Starts the RevenueCat monthly Plus purchase"
+            disabled={!canPurchase}
+            label={purchaseLabel}
+            onPress={() => void purchasePlus()}
           />
 
-          {previewMessage ? (
-            <Text accessibilityLiveRegion="polite" style={styles.previewNote}>
-              {previewMessage}
-            </Text>
+          <PrimaryButton
+            accessibilityHint="Restores a previous Plus purchase for this store account"
+            disabled={!isConfigured || isExpoGoPreview || isBusy}
+            label={isRestoring ? 'Restoring purchases…' : 'Restore purchases'}
+            onPress={() => void restorePurchases()}
+            style={styles.secondaryAction}
+            variant="secondary"
+          />
+
+          {offeringStatus === 'error' || offeringStatus === 'unavailable' ? (
+            <PrimaryButton
+              accessibilityHint="Tries loading the current RevenueCat offering again"
+              disabled={!isConfigured || isBusy}
+              label="Try loading plans again"
+              onPress={() => void reload()}
+              style={styles.secondaryAction}
+              variant="secondary"
+            />
           ) : null}
 
           <Text style={styles.disclaimer}>
-            Real subscriptions need App Store or Google Play products and a
-            development or store build of the app.
+            Purchases are handled by RevenueCat. Plus is granted only when the
+            returned CustomerInfo contains an active “plus” entitlement.
           </Text>
+
+          {__DEV__ ? (
+            <View
+              accessibilityLabel="RevenueCat development diagnostic"
+              style={styles.diagnostic}
+            >
+              <Text style={styles.diagnosticTitle}>Development diagnostic</Text>
+              <Text style={styles.diagnosticText}>
+                SDK configured: {isConfigured ? 'yes' : 'no'}
+              </Text>
+              <Text style={styles.diagnosticText}>
+                Current offering loaded: {currentOfferingLoaded ? 'yes' : 'no'}
+                {currentOfferingIdentifier
+                  ? ` (${currentOfferingIdentifier})`
+                  : ''}
+              </Text>
+              <Text style={styles.diagnosticText}>
+                Plus active: {isPlusActive ? 'yes' : 'no'}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </ScrollView>
     </ScreenContainer>
@@ -196,6 +357,24 @@ const styles = StyleSheet.create({
     maxWidth: layout.maxContentWidth,
     width: '100%',
   },
+  diagnostic: {
+    backgroundColor: colors.softBlue,
+    borderRadius: radii.md,
+    marginTop: spacing.lg,
+    padding: spacing.md,
+  },
+  diagnosticText: {
+    color: colors.textSecondary,
+    fontSize: typography.size.caption,
+    lineHeight: typography.lineHeight.caption,
+    marginTop: spacing.xxs,
+  },
+  diagnosticTitle: {
+    color: colors.text,
+    fontSize: typography.size.small,
+    fontWeight: typography.weight.semibold,
+    lineHeight: typography.lineHeight.small,
+  },
   disclaimer: {
     color: colors.textSecondary,
     fontSize: typography.size.caption,
@@ -222,6 +401,11 @@ const styles = StyleSheet.create({
     fontSize: typography.size.small,
     lineHeight: typography.lineHeight.small,
     marginTop: spacing.xxs,
+  },
+  noticeHeading: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
   },
   noticeTitle: {
     color: colors.text,
@@ -259,17 +443,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: typography.size.small,
   },
-  previewNote: {
-    color: colors.primary,
-    fontSize: typography.size.body,
-    fontWeight: typography.weight.medium,
-    lineHeight: typography.lineHeight.body,
-    marginTop: spacing.md,
-  },
   scrollContent: {
     flexGrow: 1,
     paddingBottom: spacing.xl,
     paddingTop: spacing.xxs,
+  },
+  secondaryAction: {
+    marginTop: spacing.sm,
   },
   subtitle: {
     color: colors.textSecondary,
