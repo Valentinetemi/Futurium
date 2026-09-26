@@ -25,6 +25,10 @@ type DatabaseVersionRow = {
   user_version: number;
 };
 
+type SweepCountRow = {
+  count: number;
+};
+
 const CREATE_DATABASE_SQL = `
   BEGIN IMMEDIATE;
 
@@ -160,6 +164,21 @@ export async function listSweeps(database: SweepDatabase): Promise<Sweep[]> {
   );
 
   return rows.map(mapSweepRow);
+}
+
+export async function countPreparedSweeps(
+  database: SweepDatabase,
+  excludingSweepId: number,
+): Promise<number> {
+  const row = await database.getFirstAsync<SweepCountRow>(
+    `SELECT COUNT(*) AS count
+     FROM sweeps
+     WHERE status IN ('uploading', 'processing', 'ready')
+       AND id != $excludingSweepId`,
+    { $excludingSweepId: excludingSweepId },
+  );
+
+  return Number(row?.count ?? 0);
 }
 
 export async function getSweep(

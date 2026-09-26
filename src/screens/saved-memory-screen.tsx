@@ -22,15 +22,18 @@ import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 import type { Sweep } from '@/database/sweep-model';
 import {
   beginSweepUpload,
+  countPreparedSweeps,
   getSweep,
   saveSweepProcessingManifest,
   updateSweepStatus,
 } from '@/database/sweep-repository';
+import { canPrepareSpace } from '@/lib/prepared-space-access';
 import {
   getSweepProcessing,
   ProcessingApiError,
   uploadSweepForProcessing,
 } from '@/lib/processing-api';
+import { useRevenueCat } from '@/providers/revenuecat-provider';
 import {
   deleteSweepWithVideo,
   isSweepVideoAvailable,
@@ -101,6 +104,7 @@ function VideoMessage({ body, title }: { body: string; title: string }) {
 export function SavedMemoryScreen() {
   const router = useRouter();
   const database = useSQLiteContext();
+  const { isPlusActive, refreshCustomerInfo } = useRevenueCat();
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const [sweep, setSweep] = useState<Sweep | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -218,10 +222,44 @@ export function SavedMemoryScreen() {
     sweepId,
   ]);
 
-  async function uploadForProcessing(savedSweep: Sweep) {
+  async function hasPreparationAccess(savedSweep: Sweep) {
+    const latestPlusAccess = await refreshCustomerInfo();
+    const preparedSpaceCount = await countPreparedSweeps(
+      database,
+      savedSweep.id,
+    );
+
+    return canPrepareSpace({
+      isPlusActive: latestPlusAccess,
+      preparedSpaceCount,
+    });
+  }
+
+  function showPreparationLimit() {
+    const message =
+      'Free includes one prepared space. Your existing memories are safe, and you can keep searching memories that are already prepared. Plus is needed only before preparing another space.';
+    setProcessingError(message);
+    Alert.alert('One prepared space on Free', message, [
+      { style: 'cancel', text: 'Not now' },
+      {
+        onPress: () => router.push('/plus'),
+        text: 'View Plus',
+      },
+    ]);
+  }
+
+  async function uploadForProcessing(
+    savedSweep: Sweep,
+    accessAlreadyChecked = false,
+  ) {
     setProcessingError(null);
 
     try {
+      if (!accessAlreadyChecked && !(await hasPreparationAccess(savedSweep))) {
+        showPreparationLimit();
+        return;
+      }
+
       const uploadingSweep = await beginSweepUpload(database, savedSweep.id);
       if (!uploadingSweep) {
         throw new Error('This saved memory no longer exists.');
@@ -249,18 +287,31 @@ export function SavedMemoryScreen() {
     }
   }
 
-  function confirmUpload(savedSweep: Sweep) {
-    Alert.alert(
-      'Prepare this memory?',
-      'A copy of this video will be sent to your processing server. The server deletes the copy once it has finished, whether or not it succeeds. Your video stays on this phone.',
-      [
-        { style: 'cancel', text: 'Cancel' },
-        {
-          onPress: () => void uploadForProcessing(savedSweep),
-          text: 'Send copy',
-        },
-      ],
-    );
+  async function confirmUpload(savedSweep: Sweep) {
+    setProcessingError(null);
+
+    try {
+      if (!(await hasPreparationAccess(savedSweep))) {
+        showPreparationLimit();
+        return;
+      }
+
+      Alert.alert(
+        'Prepare this memory?',
+        'A copy of this video will be sent to your processing server. The server deletes the copy once it has finished, whether or not it succeeds. Your video stays on this phone.',
+        [
+          { style: 'cancel', text: 'Cancel' },
+          {
+            onPress: () => void uploadForProcessing(savedSweep, true),
+            text: 'Send copy',
+          },
+        ],
+      );
+    } catch {
+      setProcessingError(
+        'FoundIt could not check your prepared spaces, so nothing was uploaded. Please try again.',
+      );
+    }
   }
 
   async function deleteMemory(savedSweep: Sweep) {
@@ -357,11 +408,19 @@ export function SavedMemoryScreen() {
                 />
               )}
 
+              {!isPlusActive &&
+              (sweep.status === 'saved' || sweep.status === 'failed') ? (
+                <Text style={styles.freeLimitNote}>
+                  Free includes one prepared space. Saved memories stay on your
+                  phone, and memories already prepared remain searchable.
+                </Text>
+              ) : null}
+
               <ProcessingSummary
                 errorMessage={processingError}
                 isVideoAvailable={isVideoAvailable}
                 manifest={sweep.processingManifest}
-                onUpload={() => confirmUpload(sweep)}
+                onUpload={() => void confirmUpload(sweep)}
                 status={sweep.status}
               />
 
@@ -427,6 +486,12 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     marginTop: spacing.xl,
     paddingTop: spacing.lg,
+  },
+  freeLimitNote: {
+    color: colors.textSecondary,
+    fontSize: typography.size.small,
+    lineHeight: typography.lineHeight.small,
+    marginTop: spacing.md,
   },
   header: {
     marginBottom: spacing.md,
