@@ -88,12 +88,12 @@ export function HomeScreen() {
         <View style={styles.contentWidth}>
           <View style={styles.topBar}>
             <Text heading style={styles.wordmark}>
-              Futurium
+              FoundIt
             </Text>
 
             <Pressable
               accessibilityHint="Shows the free and Plus plans"
-              accessibilityLabel="Futurium Plus"
+              accessibilityLabel="FoundIt Plus"
               accessibilityRole="button"
               hitSlop={8}
               onPress={() => router.push('/plus')}
@@ -113,7 +113,7 @@ export function HomeScreen() {
           </View>
 
           <Text accessibilityRole="header" heading style={styles.headline}>
-            Record a room,{'\n'}look back later.
+            Your space remembers{'\n'}where you left it.
           </Text>
 
           <PrimaryButton

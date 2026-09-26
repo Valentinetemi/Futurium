@@ -53,7 +53,7 @@ AUDIO_MEDIA_TYPES = {
 }
 UPLOAD_CHUNK_BYTES = 1024 * 1024
 
-logger = logging.getLogger("futurium_api")
+logger = logging.getLogger("foundit_api")
 
 
 def elapsed_milliseconds(started_at: float) -> float:
@@ -283,7 +283,7 @@ def create_app(
     )
     processing_tasks: set[asyncio.Task[None]] = set()
     app = FastAPI(
-        title="Futurium Processing API",
+        title="FoundIt Processing API",
         version="0.1.0",
         description="Extracts useful frames from saved room sweeps.",
     )

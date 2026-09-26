@@ -8,7 +8,7 @@ import { DATABASE_NAME, initializeDatabase } from '@/database/sweep-repository';
 import '@/lib/revenuecat';
 
 if (__DEV__) {
-  console.info('[Futurium] API configuration', {
+  console.info('[FoundIt] API configuration', {
     apiBaseUrl:
       process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || '(not configured)',
   });

@@ -259,7 +259,7 @@ export function CaptureScreen() {
 
     if (!cameraResult.granted || !microphoneResult.granted) {
       setErrorMessage(
-        'Futurium needs both the camera and the microphone to record a room.',
+        'FoundIt needs both the camera and the microphone to record a room.',
       );
     } else {
       setErrorMessage(null);
@@ -420,7 +420,7 @@ export function CaptureScreen() {
               heading
               style={styles.permissionTitle}
             >
-              Futurium needs your camera and microphone
+              FoundIt needs your camera and microphone
             </Text>
             <Text style={styles.permissionCopy}>
               They are used only while you record a room. Each recording is up

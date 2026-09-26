@@ -1,1 +1,1 @@
-"""Futurium local video processing API."""
+"""FoundIt local video processing API."""

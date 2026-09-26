@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 from typing import Protocol
 
-logger = logging.getLogger("futurium_api")
+logger = logging.getLogger("foundit_api")
 
 
 class TranscriptionError(Exception):
@@ -67,7 +67,7 @@ class GeminiTranscriber:
             uploaded_file = client.files.upload(  # type: ignore[union-attr]
                 file=audio_path,
                 config=types.UploadFileConfig(
-                    display_name="Futurium voice query",
+                    display_name="FoundIt voice query",
                     mime_type=media_type,
                 ),
             )

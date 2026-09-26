@@ -163,8 +163,8 @@ export function ProcessingSummary({
             Prepare for finding
           </Text>
           <Text style={styles.body}>
-            Futurium keeps the clearest moments from this video, ready for
-            search later.
+            FoundIt keeps the clearest moments from this video, ready for search
+            later.
           </Text>
         </>
       ) : null}

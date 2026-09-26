@@ -30,6 +30,7 @@ class JsonFormatter(logging.Formatter):
         payload: dict[str, object] = {
             "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname.lower(),
+            "service": "foundit_api",
             "event": record.getMessage(),
         }
         for field in self._context_fields:

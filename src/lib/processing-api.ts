@@ -17,7 +17,7 @@ export {
 };
 
 function logUploadDiagnostic(diagnostic: UploadDiagnostic) {
-  console.warn('[Futurium] Sweep upload failed', diagnostic);
+  console.warn('[FoundIt] Sweep upload failed', diagnostic);
 }
 
 async function logProcessingApiHealth() {
@@ -25,7 +25,7 @@ async function logProcessingApiHealth() {
     const response = await fetch(`${getProcessingApiBaseUrl()}/health`);
     console.log(await response.text());
   } catch (error) {
-    console.warn('[Futurium] API health check failed', {
+    console.warn('[FoundIt] API health check failed', {
       errorMessage: error instanceof Error ? error.message : String(error),
       errorName: error instanceof Error ? error.name : 'UnknownError',
     });

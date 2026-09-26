@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Futurium",
-    "slug": "futurium",
+    "name": "FoundIt",
+    "slug": "foundit",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "futurium",
+    "scheme": "foundit",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
@@ -19,8 +19,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Futurium to record visual memories of your spaces.",
-          "microphonePermission": "Allow Futurium to include sound in room sweeps.",
+          "cameraPermission": "Allow FoundIt to record visual memories of your spaces.",
+          "microphonePermission": "Allow FoundIt to include sound in room sweeps.",
           "recordAudioAndroid": true,
           "barcodeScannerEnabled": false
         }
@@ -30,7 +30,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Allow Futurium to record audio for room sweeps and short voice searches.",
+          "microphonePermission": "Allow FoundIt to record audio for room sweeps and short voice searches.",
           "recordAudioAndroid": true,
           "enableBackgroundPlayback": false
         }

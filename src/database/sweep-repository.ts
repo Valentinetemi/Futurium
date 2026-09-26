@@ -10,6 +10,7 @@ import {
 } from '@/database/sweep-model';
 import type { ProcessingManifest } from '@/types/processing';
 
+// Keep the legacy filename so an app update continues to open existing memories.
 export const DATABASE_NAME = 'futurium.db';
 export const DATABASE_VERSION = 2;
 

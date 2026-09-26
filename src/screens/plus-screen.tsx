@@ -121,7 +121,7 @@ export function PlusScreen() {
 
           <View style={styles.header}>
             <Text accessibilityRole="header" heading style={styles.title}>
-              Futurium Plus
+              FoundIt Plus
             </Text>
             <Text style={styles.subtitle}>
               Room for every space you want to remember.
