@@ -26,7 +26,8 @@ does not diagnose, treat, or manage dementia or any other medical condition.
 The current build includes camera capture, local video and SQLite persistence,
 saved-memory playback and deletion, FastAPI upload and background processing,
 FFmpeg frame extraction, OpenCV quality filtering, OpenCLIP semantic retrieval,
-typed search, optional Gemini transcription, and a RevenueCat Plus preview.
+typed search, optional Gemini transcription, and RevenueCat-powered Plus
+access.
 
 Text-based retrieval was physically verified on an iPhone on September 26, 2026. Voice input and the weak/missing-object experience have automated coverage
 but still require physical-device verification.
@@ -44,7 +45,8 @@ but still require physical-device verification.
 - FastAPI, FFmpeg, FFprobe, OpenCV, and NumPy
 - OpenCLIP `ViT-B-32` with `laion2b_s34b_b79k` weights
 - Gemini `gemini-3.5-transcribe` for optional server-side transcription
-- RevenueCat React Native SDK with Preview API Mode in Expo Go
+- RevenueCat Test Store purchases in native development builds, with a safe
+  paywall preview in Expo Go
 
 OpenCLIP is loaded once per backend process. Its weights download on the first
 real processing run, which requires internet access and can make that run slower.
@@ -144,17 +146,63 @@ npm run start:clean
 Scan the QR code with Expo Go. Camera, microphone, and saved-file behavior should
 be checked on a physical phone.
 
-## RevenueCat preview
+## RevenueCat Plus and Test Store
 
-Set a public Test Store or browser-compatible SDK key in the mobile `.env`:
+Set the public SDK key for the RevenueCat Test Store app in the mobile `.env`:
 
 ```dotenv
 EXPO_PUBLIC_REVENUECAT_API_KEY=test_replace_with_your_public_sdk_key
 ```
 
-Expo Go uses RevenueCat Preview API Mode. The Plus interface can be demonstrated,
-but no real App Store or Play Store purchase occurs. Real purchases require
-configured store products and a development or production build.
+The RevenueCat dashboard must contain this exact relationship:
+
+1. An entitlement with identifier `plus`.
+2. A monthly Test Store subscription product attached to `plus`.
+3. That product in RevenueCat's predefined monthly package (`$rc_monthly`).
+4. The monthly package in an offering with identifier `default`.
+5. `default` selected as the project's current offering.
+
+The app loads `Purchases.getOfferings()`, uses only `offerings.current`, and
+requires that current offering to be `default` with a monthly package. The
+displayed price comes from RevenueCat. Purchase and restore results unlock Plus
+only when `customerInfo.entitlements.active.plus` exists. CustomerInfo updates
+are also observed while the app is running.
+
+Free includes one prepared space. Plus includes unlimited prepared spaces.
+Recording and saving local memories remain available, existing memories are
+never deleted when the limit is reached, and existing prepared memories remain
+searchable. A free user who already has one or more prepared memories is asked
+to get Plus before preparing another.
+
+### Expo Go preview
+
+Expo Go uses RevenueCat Preview API Mode. It can display the Plus screen and a
+loaded offering, but FoundIt disables purchase and restore there and never
+grants Plus from simulated preview state. No genuine Test Store entitlement is
+purchased in Expo Go.
+
+### Genuine Test Store purchase
+
+The project includes `expo-dev-client`, so a native development build contains
+RevenueCat's native module. Never use the Test Store key in a production build.
+
+```bash
+# Rebuild after installing or changing native dependencies
+npx expo prebuild --clean
+
+# Connect an iPhone, enable Developer Mode, then build and install FoundIt
+npx expo run:ios --device
+
+# For later JavaScript-only sessions
+npx expo start --dev-client --clear
+```
+
+On the Plus screen, confirm the development diagnostic says that the SDK and
+current `default` offering are loaded. Tap the monthly purchase button, choose a
+Test Store outcome, and confirm a successful result changes **Plus active** to
+**yes**. Cancellation and failure must leave the account on Free. **Restore
+purchases** must grant access only when RevenueCat returns an active `plus`
+entitlement.
 
 ## Privacy and limitations
 
