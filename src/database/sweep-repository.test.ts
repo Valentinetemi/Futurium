@@ -12,6 +12,7 @@ import {
 } from '@/database/sweep-model';
 import {
   beginSweepUpload,
+  countPreparedSweeps,
   createSweep,
   DATABASE_VERSION,
   deleteSweep,
@@ -275,6 +276,43 @@ test('persists upload and completed processing manifests on one sweep', async ()
     assert.equal(ready?.processingJobId, manifest.jobId);
     assert.deepEqual(ready?.processingManifest, manifest);
     assert.equal((await listSweeps(testDatabase.database)).length, 1);
+  } finally {
+    testDatabase.close();
+  }
+});
+
+test('counts only other spaces occupying a prepared-space slot', async () => {
+  const testDatabase = await createCleanTestDatabase();
+
+  try {
+    await initializeDatabase(testDatabase.database);
+    const readySweep = await createSweep(testDatabase.database, {
+      durationSeconds: 4,
+      roomName: 'Bedroom',
+      videoUri: 'file:///documents/bedroom.mp4',
+    });
+    const savedSweep = await createSweep(testDatabase.database, {
+      durationSeconds: 5,
+      roomName: 'Kitchen',
+      videoUri: 'file:///documents/kitchen.mp4',
+    });
+    const failedSweep = await createSweep(testDatabase.database, {
+      durationSeconds: 6,
+      roomName: 'Office',
+      videoUri: 'file:///documents/office.mp4',
+    });
+
+    await updateSweepStatus(testDatabase.database, readySweep.id, 'ready');
+    await updateSweepStatus(testDatabase.database, failedSweep.id, 'failed');
+
+    assert.equal(
+      await countPreparedSweeps(testDatabase.database, savedSweep.id),
+      1,
+    );
+    assert.equal(
+      await countPreparedSweeps(testDatabase.database, readySweep.id),
+      0,
+    );
   } finally {
     testDatabase.close();
   }
